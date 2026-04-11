@@ -9,6 +9,9 @@ interface CapsuleData {
   type: 'text' | 'image' | 'audio'
   createdAt: string
   isLocked: boolean
+  unlockVotesCount?: number
+  unlockVotesRequired?: number
+  viewerHasVoted?: boolean
 }
 
 const Capsule: React.FC = () => {
@@ -33,7 +36,10 @@ const Capsule: React.FC = () => {
       content: capsule.content,
       type: capsule.type,
       createdAt: capsule.createdAt,
-      isLocked: capsule.isLocked
+      isLocked: capsule.isLocked,
+      unlockVotesCount: capsule.unlockVotesCount,
+      unlockVotesRequired: capsule.unlockVotesRequired,
+      viewerHasVoted: capsule.viewerHasVoted
     }
   }
 
@@ -136,16 +142,22 @@ const Capsule: React.FC = () => {
         throw new Error('Failed to unlock capsule')
       }
 
+      const payload = await response.json()
+      const updatedCapsule = normalizeCapsule(payload.capsule)
+
       setCapsules((prev) => prev.map((capsule) => {
         if (capsule.id !== capsuleId) {
           return capsule
         }
 
-        return {
-          ...capsule,
-          isLocked: false
-        }
+        return updatedCapsule
       }))
+
+      if (payload.status === 'awaiting_partner') {
+        setActionError('Unlock requested. Waiting for partner confirmation.')
+      } else if (payload.status === 'unlocked') {
+        setActionError(null)
+      }
     } catch (error) {
       console.error('Unlock capsule error:', error)
       setActionError('Failed to unlock capsule')
@@ -306,6 +318,11 @@ const Capsule: React.FC = () => {
                             <p className="text-sm text-aurora-purple/60">
                               {new Date(capsule.createdAt).toLocaleDateString()}
                             </p>
+                            {capsule.isLocked && capsule.unlockVotesRequired && (
+                              <p className="text-xs text-solar-gold/80 mt-1">
+                                Unlock votes: {capsule.unlockVotesCount || 0}/{capsule.unlockVotesRequired}
+                              </p>
+                            )}
                           </div>
                           <div className="flex items-center space-x-2">
                             {capsule.isLocked && (
@@ -314,13 +331,18 @@ const Capsule: React.FC = () => {
                                 <span className="text-xs">Locked</span>
                               </div>
                             )}
-                            {capsule.isLocked && (
+                            {capsule.isLocked && !capsule.viewerHasVoted && (
                               <button
                                 onClick={() => handleUnlockCapsule(capsule.id)}
                                 className="px-3 py-1 rounded-full border border-solar-gold/60 text-solar-gold text-xs hover:bg-solar-gold/10 transition-colors"
                               >
                                 Unlock
                               </button>
+                            )}
+                            {capsule.isLocked && capsule.viewerHasVoted && (
+                              <span className="px-3 py-1 rounded-full border border-solar-gold/30 text-solar-gold/80 text-xs">
+                                Waiting Partner
+                              </span>
                             )}
                           </div>
                         </div>

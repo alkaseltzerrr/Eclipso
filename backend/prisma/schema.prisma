@@ -25,6 +25,7 @@ model User {
   sentMessages     Message[]         @relation("MessageSender")
   receivedMessages Message[]         @relation("MessageReceiver")
   capsules         Capsule[]
+  capsuleUnlockVotes CapsuleUnlockVote[]
   partnerships     Partnership[]     @relation("PartnershipUser")
   partnerOf        Partnership[]     @relation("PartnershipPartner")
 
@@ -102,8 +103,22 @@ model Capsule {
 
   createdBy   User         @relation(fields: [createdById], references: [id], onDelete: Cascade)
   partnership Partnership? @relation(fields: [partnershipId], references: [id], onDelete: SetNull)
+  unlockVotes CapsuleUnlockVote[]
 
   @@map("capsules")
+}
+
+model CapsuleUnlockVote {
+  id        String   @id @default(cuid())
+  capsuleId String
+  userId    String
+  createdAt DateTime @default(now())
+
+  capsule Capsule @relation(fields: [capsuleId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([capsuleId, userId])
+  @@map("capsule_unlock_votes")
 }
 
 model ConstellationData {

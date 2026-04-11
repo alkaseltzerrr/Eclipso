@@ -3,6 +3,7 @@ import { authenticate } from '../middleware/authMiddleware'
 import prisma from '../lib/prisma'
 
 const router = express.Router()
+const prismaAny = prisma as any
 
 const findActivePartnership = async (userId: string, partnerId: string) => {
   return prisma.partnership.findFirst({
@@ -14,6 +15,20 @@ const findActivePartnership = async (userId: string, partnerId: string) => {
       ]
     }
   })
+}
+
+const formatCapsuleForUser = (capsule: any, userId: string) => {
+  const unlockVotes = Array.isArray(capsule.unlockVotes) ? capsule.unlockVotes : []
+  const unlockVotesRequired = capsule.isLocked && capsule.partnershipId ? 2 : 1
+  const unlockVotesCount = unlockVotes.length
+  const viewerHasVoted = unlockVotes.some((vote: any) => vote.userId === userId)
+
+  return {
+    ...capsule,
+    unlockVotesCount,
+    unlockVotesRequired,
+    viewerHasVoted
+  }
 }
 
 // Get chat messages
@@ -139,12 +154,17 @@ router.get('/capsules', authenticate, async (req: any, res: any) => {
             username: true,
             avatar: true
           }
+        },
+        unlockVotes: {
+          select: {
+            userId: true
+          }
         }
       },
       orderBy: { createdAt: 'desc' }
     })
 
-    res.json(capsules)
+    res.json(capsules.map((capsule) => formatCapsuleForUser(capsule, userId)))
   } catch (error) {
     console.error('Get capsules error:', error)
     res.status(500).json({ message: 'Server error' })
@@ -168,6 +188,10 @@ router.post('/capsules', authenticate, async (req: any, res: any) => {
       }
     })
 
+    if (isLocked && !partnership) {
+      return res.status(400).json({ message: 'Locked capsules require active partnership' })
+    }
+
     const capsule = await prisma.capsule.create({
       data: {
         title,
@@ -184,11 +208,16 @@ router.post('/capsules', authenticate, async (req: any, res: any) => {
             username: true,
             avatar: true
           }
+        },
+        unlockVotes: {
+          select: {
+            userId: true
+          }
         }
       }
     })
 
-    res.status(201).json(capsule)
+    res.status(201).json(formatCapsuleForUser(capsule, userId))
   } catch (error) {
     console.error('Create capsule error:', error)
     res.status(500).json({ message: 'Server error' })
@@ -204,7 +233,12 @@ router.put('/capsules/:id/unlock', authenticate, async (req: any, res: any) => {
     const capsule = await prisma.capsule.findUnique({
       where: { id },
       include: {
-        partnership: true
+        partnership: true,
+        unlockVotes: {
+          select: {
+            userId: true
+          }
+        }
       }
     })
 
@@ -220,15 +254,76 @@ router.put('/capsules/:id/unlock', authenticate, async (req: any, res: any) => {
       return res.status(403).json({ message: 'Access denied' })
     }
 
-    const unlockedCapsule = await prisma.capsule.update({
+    if (!capsule.isLocked) {
+      return res.json({
+        status: 'already_unlocked',
+        capsule: formatCapsuleForUser(capsule, userId)
+      })
+    }
+
+    if (!capsule.partnershipId) {
+      return res.status(400).json({ message: 'Locked capsule missing partnership context' })
+    }
+
+    const existingVotes = Array.isArray((capsule as any).unlockVotes)
+      ? ((capsule as any).unlockVotes as Array<{ userId: string }>)
+      : []
+    const viewerAlreadyVoted = existingVotes.some((vote: { userId: string }) => vote.userId === userId)
+
+    if (!viewerAlreadyVoted) {
+      await prismaAny.capsuleUnlockVote.upsert({
+        where: {
+          capsuleId_userId: {
+            capsuleId: id,
+            userId
+          }
+        },
+        update: {},
+        create: {
+          capsuleId: id,
+          userId
+        }
+      })
+    }
+
+    const unlockVotesCount = await prismaAny.capsuleUnlockVote.count({
+      where: { capsuleId: id }
+    })
+
+    const shouldUnlock = unlockVotesCount >= 2
+
+    if (shouldUnlock) {
+      await prisma.capsule.update({
+        where: { id },
+        data: {
+          isLocked: false,
+          unlockedAt: new Date()
+        }
+      })
+    }
+
+    const updatedCapsule = await prisma.capsule.findUnique({
       where: { id },
-      data: {
-        isLocked: false,
-        unlockedAt: new Date()
+      include: {
+        partnership: true,
+        unlockVotes: {
+          select: {
+            userId: true
+          }
+        }
       }
     })
 
-    res.json(unlockedCapsule)
+    if (!updatedCapsule) {
+      return res.status(404).json({ message: 'Capsule not found' })
+    }
+
+    const status = shouldUnlock ? 'unlocked' : (viewerAlreadyVoted ? 'already_voted' : 'awaiting_partner')
+
+    res.json({
+      status,
+      capsule: formatCapsuleForUser(updatedCapsule, userId)
+    })
   } catch (error) {
     console.error('Unlock capsule error:', error)
     res.status(500).json({ message: 'Server error' })

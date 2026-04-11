@@ -1,9 +1,8 @@
 import express from 'express'
-import { PrismaClient } from '@prisma/client'
 import { authenticate } from '../middleware/authMiddleware'
+import prisma from '../lib/prisma'
 
 const router = express.Router()
-const prisma = new PrismaClient()
 
 const findActivePartnership = async (userId: string, partnerId: string) => {
   return prisma.partnership.findFirst({

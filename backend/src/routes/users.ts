@@ -1,10 +1,9 @@
 import express from 'express'
-import { PrismaClient } from '@prisma/client'
 import Joi from 'joi'
 import { authenticate } from '../middleware/authMiddleware'
+import prisma from '../lib/prisma'
 
 const router = express.Router()
-const prisma = new PrismaClient()
 
 const profileSchema = Joi.object({
   interests: Joi.array().items(Joi.string().trim().min(1).max(40)).max(30),

@@ -2,10 +2,9 @@ import express from 'express'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import Joi from 'joi'
-import { PrismaClient } from '@prisma/client'
+import prisma from '../lib/prisma'
 
 const router = express.Router()
-const prisma = new PrismaClient()
 
 const registerSchema = Joi.object({
   email: Joi.string().trim().lowercase().email().max(254).required(),

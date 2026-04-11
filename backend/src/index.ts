@@ -1,7 +1,6 @@
 import express from 'express'
 import { createServer } from 'http'
 import { Server } from 'socket.io'
-import { PrismaClient } from '@prisma/client'
 import cors from 'cors'
 import helmet from 'helmet'
 import dotenv from 'dotenv'
@@ -11,10 +10,9 @@ import userRoutes from './routes/users'
 import chatRoutes from './routes/chat'
 
 import { authenticateSocket } from './middleware/authMiddleware'
+import prisma from './lib/prisma'
 
 dotenv.config()
-
-const prisma = new PrismaClient()
 
 const app = express()
 const server = createServer(app)

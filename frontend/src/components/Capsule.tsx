@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Package, Heart, Image, Mic, FileText, X } from 'lucide-react'
 
@@ -14,37 +14,142 @@ interface CapsuleData {
 const Capsule: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false)
   const [activeTab, setActiveTab] = useState<'view' | 'create'>('view')
+  const [capsules, setCapsules] = useState<CapsuleData[]>([])
+  const [isLoading, setIsLoading] = useState(false)
+  const [isCreating, setIsCreating] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
   const [newCapsule, setNewCapsule] = useState({
     title: '',
     content: '',
     type: 'text' as const
   })
 
-  // Mock capsules data
-  const capsules: CapsuleData[] = [
-    {
-      id: '1',
-      title: 'First Memory',
-      content: 'Remember when we first connected? The stars aligned perfectly that night.',
-      type: 'text',
-      createdAt: '2024-01-15',
-      isLocked: false
-    },
-    {
-      id: '2',
-      title: 'Locked Surprise',
-      content: 'This memory is waiting for both of us to unlock together...',
-      type: 'text',
-      createdAt: '2024-01-20',
-      isLocked: true
-    }
-  ]
+  const getToken = () => localStorage.getItem('token')
 
-  const handleCreateCapsule = () => {
-    // In a real app, this would send to the backend
-    console.log('Creating capsule:', newCapsule)
-    setNewCapsule({ title: '', content: '', type: 'text' })
-    setActiveTab('view')
+  const normalizeCapsule = (capsule: any): CapsuleData => {
+    return {
+      id: capsule.id,
+      title: capsule.title,
+      content: capsule.content,
+      type: capsule.type,
+      createdAt: capsule.createdAt,
+      isLocked: capsule.isLocked
+    }
+  }
+
+  const loadCapsules = async () => {
+    const token = getToken()
+
+    if (!token) {
+      return
+    }
+
+    setIsLoading(true)
+    setActionError(null)
+
+    try {
+      const response = await fetch('/api/chat/capsules', {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to load capsules')
+      }
+
+      const data = await response.json()
+      setCapsules((data || []).map(normalizeCapsule))
+    } catch (error) {
+      console.error('Load capsules error:', error)
+      setActionError('Failed to load capsules')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (isOpen) {
+      loadCapsules()
+    }
+  }, [isOpen])
+
+  const handleCreateCapsule = async () => {
+    const token = getToken()
+
+    if (!token || !newCapsule.title || !newCapsule.content) {
+      return
+    }
+
+    setIsCreating(true)
+    setActionError(null)
+
+    try {
+      const response = await fetch('/api/chat/capsules', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          title: newCapsule.title,
+          content: newCapsule.content,
+          type: newCapsule.type,
+          isLocked: false
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to create capsule')
+      }
+
+      const createdCapsule = normalizeCapsule(await response.json())
+      setCapsules((prev) => [createdCapsule, ...prev])
+      setNewCapsule({ title: '', content: '', type: 'text' })
+      setActiveTab('view')
+    } catch (error) {
+      console.error('Create capsule error:', error)
+      setActionError('Failed to create capsule')
+    } finally {
+      setIsCreating(false)
+    }
+  }
+
+  const handleUnlockCapsule = async (capsuleId: string) => {
+    const token = getToken()
+
+    if (!token) {
+      return
+    }
+
+    setActionError(null)
+
+    try {
+      const response = await fetch(`/api/chat/capsules/${capsuleId}/unlock`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to unlock capsule')
+      }
+
+      setCapsules((prev) => prev.map((capsule) => {
+        if (capsule.id !== capsuleId) {
+          return capsule
+        }
+
+        return {
+          ...capsule,
+          isLocked: false
+        }
+      }))
+    } catch (error) {
+      console.error('Unlock capsule error:', error)
+      setActionError('Failed to unlock capsule')
+    }
   }
 
   return (
@@ -66,6 +171,20 @@ const Capsule: React.FC = () => {
         </div>
 
         <div className="space-y-3">
+          {actionError && (
+            <div className="p-3 rounded-lg border border-red-500/40 bg-red-500/10 text-red-200 text-sm">
+              {actionError}
+            </div>
+          )}
+
+          {isLoading && (
+            <div className="text-sm text-aurora-purple/80">Loading capsules...</div>
+          )}
+
+          {!isLoading && capsules.length === 0 && (
+            <div className="text-sm text-aurora-purple/80">No capsules yet.</div>
+          )}
+
           {capsules.slice(0, 2).map((capsule) => (
             <div
               key={capsule.id}
@@ -156,6 +275,20 @@ const Capsule: React.FC = () => {
               <div className="p-6 max-h-96 overflow-y-auto">
                 {activeTab === 'view' && (
                   <div className="space-y-4">
+                    {actionError && (
+                      <div className="p-3 rounded-lg border border-red-500/40 bg-red-500/10 text-red-200 text-sm">
+                        {actionError}
+                      </div>
+                    )}
+
+                    {isLoading && (
+                      <div className="text-sm text-aurora-purple/80">Loading capsules...</div>
+                    )}
+
+                    {!isLoading && capsules.length === 0 && (
+                      <div className="text-sm text-aurora-purple/80">No capsules yet. Create first memory capsule.</div>
+                    )}
+
                     {capsules.map((capsule) => (
                       <div
                         key={capsule.id}
@@ -174,12 +307,22 @@ const Capsule: React.FC = () => {
                               {new Date(capsule.createdAt).toLocaleDateString()}
                             </p>
                           </div>
-                          {capsule.isLocked && (
-                            <div className="flex items-center space-x-1 text-solar-gold">
-                              <Heart className="w-4 h-4" />
-                              <span className="text-xs">Locked</span>
-                            </div>
-                          )}
+                          <div className="flex items-center space-x-2">
+                            {capsule.isLocked && (
+                              <div className="flex items-center space-x-1 text-solar-gold">
+                                <Heart className="w-4 h-4" />
+                                <span className="text-xs">Locked</span>
+                              </div>
+                            )}
+                            {capsule.isLocked && (
+                              <button
+                                onClick={() => handleUnlockCapsule(capsule.id)}
+                                className="px-3 py-1 rounded-full border border-solar-gold/60 text-solar-gold text-xs hover:bg-solar-gold/10 transition-colors"
+                              >
+                                Unlock
+                              </button>
+                            )}
+                          </div>
                         </div>
                         <p className="text-starlight-cyan/80">
                           {capsule.content}
@@ -248,10 +391,10 @@ const Capsule: React.FC = () => {
 
                     <button
                       onClick={handleCreateCapsule}
-                      disabled={!newCapsule.title || !newCapsule.content}
+                      disabled={!newCapsule.title || !newCapsule.content || isCreating}
                       className="w-full bg-gradient-to-r from-aurora-purple to-nebula-rose text-white py-3 px-4 rounded-lg font-poppins font-semibold hover:from-aurora-purple/80 hover:to-nebula-rose/80 disabled:opacity-50 transition-all duration-300"
                     >
-                      Create Memory Capsule
+                      {isCreating ? 'Creating...' : 'Create Memory Capsule'}
                     </button>
                   </div>
                 )}

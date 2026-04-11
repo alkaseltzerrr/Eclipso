@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 
 const Chat: React.FC = () => {
   const [message, setMessage] = useState('')
-  const { messages, sendMessage, isConnected } = useSocket()
+  const { messages, sendMessage, isConnected, loadOlderMessages, hasMoreMessages, isLoadingMessages } = useSocket()
   const { user } = useAuth()
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const canSend = isConnected && Boolean(user?.partnerId)
@@ -57,6 +57,20 @@ const Chat: React.FC = () => {
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {hasMoreMessages && (
+          <div className="flex justify-center">
+            <button
+              onClick={() => {
+                loadOlderMessages()
+              }}
+              disabled={isLoadingMessages}
+              className="px-4 py-2 text-xs rounded-full border border-aurora-purple/40 text-aurora-purple hover:text-starlight-cyan hover:border-starlight-cyan disabled:opacity-50 transition-all"
+            >
+              {isLoadingMessages ? 'Loading older...' : 'Load older messages'}
+            </button>
+          </div>
+        )}
+
         <AnimatePresence>
           {messages.map((msg) => (
             <motion.div

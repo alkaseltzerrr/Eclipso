@@ -9,13 +9,18 @@ const prisma = new PrismaClient()
 router.get('/messages', authenticate, async (req: any, res: any) => {
   try {
     const userId = req.user.id
-    const { partnerId } = req.query
+    const { partnerId, cursor } = req.query
+
+    const parsedLimit = Number(req.query.limit)
+    const limit = Number.isFinite(parsedLimit)
+      ? Math.min(Math.max(parsedLimit, 1), 100)
+      : 30
 
     if (!partnerId) {
       return res.status(400).json({ message: 'Partner ID required' })
     }
 
-    // Find messages between users
+    // Load newest first for stable cursor paging, then reverse for UI chronology
     const messages = await prisma.message.findMany({
       where: {
         OR: [
@@ -23,11 +28,29 @@ router.get('/messages', authenticate, async (req: any, res: any) => {
           { senderId: partnerId as string, receiverId: userId }
         ]
       },
-      orderBy: { createdAt: 'asc' },
-      take: 50 // Limit to last 50 messages
+      orderBy: [
+        { createdAt: 'desc' },
+        { id: 'desc' }
+      ],
+      take: limit + 1,
+      ...(cursor
+        ? {
+            cursor: { id: cursor as string },
+            skip: 1
+          }
+        : {})
     })
 
-    res.json(messages)
+    const hasMore = messages.length > limit
+    const pagedMessages = hasMore ? messages.slice(0, limit) : messages
+    const chronologicalMessages = [...pagedMessages].reverse()
+    const nextCursor = hasMore ? pagedMessages[pagedMessages.length - 1].id : null
+
+    res.json({
+      messages: chronologicalMessages,
+      nextCursor,
+      hasMore
+    })
   } catch (error) {
     console.error('Get messages error:', error)
     res.status(500).json({ message: 'Server error' })

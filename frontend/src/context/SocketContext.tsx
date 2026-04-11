@@ -15,6 +15,9 @@ interface SocketContextType {
   socket: Socket | null
   messages: Message[]
   sendMessage: (content: string, type?: 'text' | 'capsule') => void
+  loadOlderMessages: () => Promise<void>
+  hasMoreMessages: boolean
+  isLoadingMessages: boolean
   isConnected: boolean
 }
 
@@ -31,8 +34,74 @@ export const useSocket = () => {
 export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [socket, setSocket] = useState<Socket | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
+  const [nextCursor, setNextCursor] = useState<string | null>(null)
+  const [hasMoreMessages, setHasMoreMessages] = useState(false)
+  const [isLoadingMessages, setIsLoadingMessages] = useState(false)
   const [isConnected, setIsConnected] = useState(false)
   const { user } = useAuth()
+
+  const normalizeMessage = (incoming: any): Message => {
+    return {
+      id: incoming.id,
+      senderId: incoming.senderId,
+      receiverId: incoming.receiverId,
+      content: incoming.content,
+      type: incoming.type,
+      timestamp: incoming.timestamp || incoming.createdAt || new Date().toISOString()
+    }
+  }
+
+  const fetchMessages = async (options: { partnerId: string; cursor?: string; prepend?: boolean }) => {
+    const token = localStorage.getItem('token')
+
+    if (!token) {
+      return
+    }
+
+    const { partnerId, cursor, prepend = false } = options
+    const params = new URLSearchParams({
+      partnerId,
+      limit: '30'
+    })
+
+    if (cursor) {
+      params.set('cursor', cursor)
+    }
+
+    setIsLoadingMessages(true)
+
+    try {
+      const response = await fetch(`/api/chat/messages?${params.toString()}`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to load messages')
+      }
+
+      const data = await response.json()
+      const normalizedMessages: Message[] = (data.messages || []).map(normalizeMessage)
+
+      setMessages((prev) => {
+        if (!prepend) {
+          return normalizedMessages
+        }
+
+        const existingIds = new Set(prev.map((msg) => msg.id))
+        const olderMessages = normalizedMessages.filter((msg) => !existingIds.has(msg.id))
+        return [...olderMessages, ...prev]
+      })
+
+      setNextCursor(data.nextCursor || null)
+      setHasMoreMessages(Boolean(data.hasMore))
+    } catch (error) {
+      console.error('Failed to load message history:', error)
+    } finally {
+      setIsLoadingMessages(false)
+    }
+  }
 
   useEffect(() => {
     if (user) {
@@ -59,11 +128,15 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       })
 
       socketInstance.on('message', (message: Message) => {
-        setMessages((prev) => [...prev, message])
-      })
+        const normalizedMessage = normalizeMessage(message)
 
-      socketInstance.on('messageHistory', (history: Message[]) => {
-        setMessages(history)
+        setMessages((prev) => {
+          if (prev.some((existing) => existing.id === normalizedMessage.id)) {
+            return prev
+          }
+
+          return [...prev, normalizedMessage]
+        })
       })
 
       setSocket(socketInstance)
@@ -72,7 +145,36 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         socketInstance.close()
       }
     }
+
+    setSocket(null)
+    setIsConnected(false)
+    setMessages([])
+    setNextCursor(null)
+    setHasMoreMessages(false)
   }, [user])
+
+  useEffect(() => {
+    if (!user?.partnerId) {
+      setMessages([])
+      setNextCursor(null)
+      setHasMoreMessages(false)
+      return
+    }
+
+    fetchMessages({ partnerId: user.partnerId })
+  }, [user?.id, user?.partnerId])
+
+  const loadOlderMessages = async () => {
+    if (!user?.partnerId || !nextCursor || isLoadingMessages) {
+      return
+    }
+
+    await fetchMessages({
+      partnerId: user.partnerId,
+      cursor: nextCursor,
+      prepend: true
+    })
+  }
 
   const sendMessage = (content: string, type: 'text' | 'capsule' = 'text') => {
     if (socket && user) {
@@ -95,6 +197,9 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       socket,
       messages,
       sendMessage,
+      loadOlderMessages,
+      hasMoreMessages,
+      isLoadingMessages,
       isConnected,
     }}>
       {children}

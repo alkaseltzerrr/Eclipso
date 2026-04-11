@@ -1,15 +1,42 @@
 import express from 'express'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
+import Joi from 'joi'
 import { PrismaClient } from '@prisma/client'
 
 const router = express.Router()
 const prisma = new PrismaClient()
 
+const registerSchema = Joi.object({
+  email: Joi.string().trim().lowercase().email().max(254).required(),
+  username: Joi.string().trim().min(3).max(30).pattern(/^[a-zA-Z0-9_]+$/).required(),
+  password: Joi.string().min(8).max(128).required()
+})
+
+const loginSchema = Joi.object({
+  email: Joi.string().trim().lowercase().email().max(254).required(),
+  password: Joi.string().min(8).max(128).required()
+})
+
+const getValidationMessage = (error: Joi.ValidationError) => {
+  return error.details[0]?.message || 'Invalid request payload'
+}
+
 // Register
 router.post('/register', async (req, res) => {
   try {
-    const { email, password, username } = req.body
+    const { value, error } = registerSchema.validate(req.body, {
+      abortEarly: true,
+      stripUnknown: true
+    })
+
+    if (error) {
+      return res.status(400).json({ message: getValidationMessage(error) })
+    }
+
+    const email = value.email as string
+    const username = value.username.trim() as string
+    const password = value.password as string
 
     // Check if user already exists
     const existingUser = await prisma.user.findFirst({
@@ -57,7 +84,17 @@ router.post('/register', async (req, res) => {
 // Login
 router.post('/login', async (req, res) => {
   try {
-    const { email, password } = req.body
+    const { value, error } = loginSchema.validate(req.body, {
+      abortEarly: true,
+      stripUnknown: true
+    })
+
+    if (error) {
+      return res.status(400).json({ message: getValidationMessage(error) })
+    }
+
+    const email = value.email as string
+    const password = value.password as string
 
     // Find user
     const user = await prisma.user.findUnique({

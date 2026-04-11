@@ -1,19 +1,45 @@
 import express from 'express'
 import { PrismaClient } from '@prisma/client'
+import Joi from 'joi'
 import { authenticate } from '../middleware/authMiddleware'
 
 const router = express.Router()
 const prisma = new PrismaClient()
 
+const profileSchema = Joi.object({
+  interests: Joi.array().items(Joi.string().trim().min(1).max(40)).max(30),
+  avatar: Joi.string().trim().max(255).allow(null, ''),
+  isOnboarded: Joi.boolean()
+})
+  .or('interests', 'avatar', 'isOnboarded')
+  .required()
+
+const partnershipSchema = Joi.object({
+  partnerEmail: Joi.string().trim().lowercase().email().max(254).required()
+})
+
+const getValidationMessage = (error: Joi.ValidationError) => {
+  return error.details[0]?.message || 'Invalid request payload'
+}
+
 // Update user profile
 router.put('/profile', authenticate, async (req: any, res: any) => {
   try {
-    const { interests, avatar, isOnboarded } = req.body
+    const { value, error } = profileSchema.validate(req.body, {
+      abortEarly: true,
+      stripUnknown: true
+    })
+
+    if (error) {
+      return res.status(400).json({ message: getValidationMessage(error) })
+    }
+
+    const { interests, avatar, isOnboarded } = value
     const userId = req.user.id
 
     // Update user basic info
     const updateData: any = {}
-    if (avatar !== undefined) updateData.avatar = avatar
+    if (avatar !== undefined) updateData.avatar = avatar || null
     if (isOnboarded !== undefined) updateData.isOnboarded = isOnboarded
 
     const updatedUser = await prisma.user.update({
@@ -23,13 +49,19 @@ router.put('/profile', authenticate, async (req: any, res: any) => {
 
     // Update interests if provided
     if (interests && Array.isArray(interests)) {
+      const normalizedInterests = Array.from(new Set(
+        interests
+          .map((interest: string) => interest.trim())
+          .filter((interest: string) => interest.length > 0)
+      ))
+
       // Remove existing interests
       await prisma.userInterest.deleteMany({
         where: { userId }
       })
 
       // Add new interests
-      for (const interestName of interests) {
+      for (const interestName of normalizedInterests) {
         // Find or create interest
         let interest = await prisma.interest.findUnique({
           where: { name: interestName }
@@ -96,7 +128,16 @@ router.get('/interests', async (req: any, res: any) => {
 // Create or update partnership
 router.post('/partnership', authenticate, async (req: any, res: any) => {
   try {
-    const { partnerEmail } = req.body
+    const { value, error } = partnershipSchema.validate(req.body, {
+      abortEarly: true,
+      stripUnknown: true
+    })
+
+    if (error) {
+      return res.status(400).json({ message: getValidationMessage(error) })
+    }
+
+    const { partnerEmail } = value
     const userId = req.user.id
 
     // Find partner by email

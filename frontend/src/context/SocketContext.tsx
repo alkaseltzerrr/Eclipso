@@ -139,6 +139,10 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         })
       })
 
+      socketInstance.on('errorMessage', (payload: { message?: string }) => {
+        console.error('Socket error:', payload?.message || 'Unknown socket error')
+      })
+
       setSocket(socketInstance)
 
       return () => {

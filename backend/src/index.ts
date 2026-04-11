@@ -1,6 +1,7 @@
 import express from 'express'
 import { createServer } from 'http'
 import { Server } from 'socket.io'
+import { PrismaClient } from '@prisma/client'
 import cors from 'cors'
 import helmet from 'helmet'
 import dotenv from 'dotenv'
@@ -12,6 +13,8 @@ import chatRoutes from './routes/chat'
 import { authenticateSocket } from './middleware/authMiddleware'
 
 dotenv.config()
+
+const prisma = new PrismaClient()
 
 const app = express()
 const server = createServer(app)
@@ -49,6 +52,20 @@ io.use(authenticateSocket)
 io.on('connection', (socket) => {
   const userId = socket.data.userId
 
+  const hasActivePartnership = async (partnerId: string) => {
+    const partnership = await prisma.partnership.findFirst({
+      where: {
+        status: 'active',
+        OR: [
+          { userId, partnerId },
+          { userId: partnerId, partnerId: userId }
+        ]
+      }
+    })
+
+    return partnership
+  }
+
   const buildRoomId = (peerId: string) => {
     return [userId, peerId].sort().join(':')
   }
@@ -59,8 +76,15 @@ io.on('connection', (socket) => {
   socket.join(`user:${userId}`)
 
   // Handle joining partner room if they have a partner
-  socket.on('joinPartnerRoom', (partnerId: string) => {
+  socket.on('joinPartnerRoom', async (partnerId: string) => {
     if (!partnerId || typeof partnerId !== 'string') {
+      return
+    }
+
+    const activePartnership = await hasActivePartnership(partnerId)
+
+    if (!activePartnership) {
+      socket.emit('errorMessage', { message: 'No active partnership with this user' })
       return
     }
 
@@ -79,6 +103,20 @@ io.on('connection', (socket) => {
         return
       }
 
+      const normalizedContent = String(content || '').trim()
+
+      if (!normalizedContent) {
+        socket.emit('errorMessage', { message: 'Message content required' })
+        return
+      }
+
+      const activePartnership = await hasActivePartnership(partnerId)
+
+      if (!activePartnership) {
+        socket.emit('errorMessage', { message: 'No active partnership with this user' })
+        return
+      }
+
       const roomId = buildRoomId(partnerId)
       const roomName = `room:${roomId}`
 
@@ -87,20 +125,29 @@ io.on('connection', (socket) => {
         socket.join(roomName)
       }
       
-      // Here you would save the message to the database
-      const message = {
-        id: Date.now().toString(),
+      const message = await prisma.message.create({
+        data: {
+          content: normalizedContent,
+          type,
+          senderId: userId,
+          receiverId: partnerId,
+          partnershipId: activePartnership.id
+        }
+      })
+
+      const messagePayload = {
+        id: message.id,
         senderId: userId,
         receiverId: partnerId,
-        content,
+        content: message.content,
         type,
-        timestamp: new Date().toISOString()
+        timestamp: message.createdAt.toISOString()
       }
 
       // Emit only to shared partner room (sender + partner)
-      io.to(roomName).emit('message', message)
+      io.to(roomName).emit('message', messagePayload)
       
-      console.log(`Message from ${userId}: ${content}`)
+      console.log(`Message from ${userId}: ${message.content}`)
     } catch (error) {
       console.error('Error handling message:', error)
     }

@@ -5,6 +5,18 @@ import { authenticate } from '../middleware/authMiddleware'
 const router = express.Router()
 const prisma = new PrismaClient()
 
+const findActivePartnership = async (userId: string, partnerId: string) => {
+  return prisma.partnership.findFirst({
+    where: {
+      status: 'active',
+      OR: [
+        { userId, partnerId },
+        { userId: partnerId, partnerId: userId }
+      ]
+    }
+  })
+}
+
 // Get chat messages
 router.get('/messages', authenticate, async (req: any, res: any) => {
   try {
@@ -18,6 +30,12 @@ router.get('/messages', authenticate, async (req: any, res: any) => {
 
     if (!partnerId) {
       return res.status(400).json({ message: 'Partner ID required' })
+    }
+
+    const activePartnership = await findActivePartnership(userId, partnerId as string)
+
+    if (!activePartnership) {
+      return res.status(403).json({ message: 'No active partnership with this user' })
     }
 
     // Load newest first for stable cursor paging, then reverse for UI chronology
@@ -63,12 +81,29 @@ router.post('/messages', authenticate, async (req: any, res: any) => {
     const { content, receiverId, type = 'text' } = req.body
     const senderId = req.user.id
 
+    if (!receiverId) {
+      return res.status(400).json({ message: 'Receiver ID required' })
+    }
+
+    const normalizedContent = String(content || '').trim()
+
+    if (!normalizedContent) {
+      return res.status(400).json({ message: 'Message content required' })
+    }
+
+    const activePartnership = await findActivePartnership(senderId, receiverId)
+
+    if (!activePartnership) {
+      return res.status(403).json({ message: 'No active partnership with this user' })
+    }
+
     const message = await prisma.message.create({
       data: {
-        content,
+        content: normalizedContent,
         type,
         senderId,
-        receiverId
+        receiverId,
+        partnershipId: activePartnership.id
       }
     })
 

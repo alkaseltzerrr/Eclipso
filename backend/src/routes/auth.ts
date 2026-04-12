@@ -5,6 +5,7 @@ import Joi from 'joi'
 import prisma from '../lib/prisma'
 import { AUTH_COOKIE_NAME, authenticate } from '../middleware/authMiddleware'
 import { clearCsrfToken, issueCsrfToken, requireCsrf } from '../middleware/csrfMiddleware'
+import { authRateLimit, csrfRateLimit } from '../middleware/rateLimitMiddleware'
 
 const router = express.Router()
 const AUTH_COOKIE_MAX_AGE = 7 * 24 * 60 * 60 * 1000
@@ -49,7 +50,7 @@ const getValidationMessage = (error: Joi.ValidationError) => {
 }
 
 // Register
-router.post('/register', async (req, res) => {
+router.post('/register', authRateLimit, async (req, res) => {
   try {
     const { value, error } = registerSchema.validate(req.body, {
       abortEarly: true,
@@ -111,7 +112,7 @@ router.post('/register', async (req, res) => {
 })
 
 // Login
-router.post('/login', async (req, res) => {
+router.post('/login', authRateLimit, async (req, res) => {
   try {
     const { value, error } = loginSchema.validate(req.body, {
       abortEarly: true,
@@ -236,7 +237,7 @@ router.get('/me', authenticate, async (req: any, res) => {
   }
 })
 
-router.get('/csrf', (req, res) => {
+router.get('/csrf', csrfRateLimit, (req, res) => {
   const csrfToken = issueCsrfToken(res)
   res.json({ csrfToken })
 })

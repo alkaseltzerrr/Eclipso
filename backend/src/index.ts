@@ -122,6 +122,7 @@ io.use(authenticateSocket)
 
 io.on('connection', (socket) => {
   const userId = socket.data.userId
+  const socketEventHits = new Map<string, { count: number; resetAt: number }>()
 
   markUserConnected(userId)
 
@@ -155,6 +156,23 @@ io.on('connection', (socket) => {
 
   const buildRoomId = (peerId: string) => {
     return [userId, peerId].sort().join(':')
+  }
+
+  const isSocketEventAllowed = (eventName: string, max: number, windowMs: number) => {
+    const now = Date.now()
+    const current = socketEventHits.get(eventName)
+
+    if (!current || current.resetAt <= now) {
+      socketEventHits.set(eventName, {
+        count: 1,
+        resetAt: now + windowMs
+      })
+      return true
+    }
+
+    current.count += 1
+
+    return current.count <= max
   }
 
   const emitPresenceToRoom = (roomName: string, targetUserId: string) => {
@@ -222,6 +240,14 @@ io.on('connection', (socket) => {
         socket.emit('errorMessage', {
           code: 'csrf_mismatch',
           message: 'Invalid CSRF token for socket event'
+        })
+        return
+      }
+
+      if (!isSocketEventAllowed('message', 25, 10 * 1000)) {
+        socket.emit('errorMessage', {
+          code: 'rate_limited',
+          message: 'Too many messages. Slow down.'
         })
         return
       }
@@ -300,6 +326,14 @@ io.on('connection', (socket) => {
         return
       }
 
+      if (!isSocketEventAllowed('markRead', 20, 10 * 1000)) {
+        socket.emit('errorMessage', {
+          code: 'rate_limited',
+          message: 'Too many read updates. Slow down.'
+        })
+        return
+      }
+
       const partnerId = data?.partnerId
 
       if (!partnerId || typeof partnerId !== 'string') {
@@ -353,6 +387,14 @@ io.on('connection', (socket) => {
         return
       }
 
+      if (!isSocketEventAllowed('typing', 60, 10 * 1000)) {
+        socket.emit('errorMessage', {
+          code: 'rate_limited',
+          message: 'Too many typing events. Slow down.'
+        })
+        return
+      }
+
       const partnerId = data?.partnerId
 
       if (!partnerId || typeof partnerId !== 'string') {
@@ -383,6 +425,14 @@ io.on('connection', (socket) => {
         socket.emit('errorMessage', {
           code: 'csrf_mismatch',
           message: 'Invalid CSRF token for socket event'
+        })
+        return
+      }
+
+      if (!isSocketEventAllowed('typing', 60, 10 * 1000)) {
+        socket.emit('errorMessage', {
+          code: 'rate_limited',
+          message: 'Too many typing events. Slow down.'
         })
         return
       }

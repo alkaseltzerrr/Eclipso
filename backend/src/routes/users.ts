@@ -2,6 +2,7 @@ import express from 'express'
 import Joi from 'joi'
 import { authenticate } from '../middleware/authMiddleware'
 import { requireCsrf } from '../middleware/csrfMiddleware'
+import { partnershipActionRateLimit, writeRateLimit } from '../middleware/rateLimitMiddleware'
 import prisma from '../lib/prisma'
 
 const router = express.Router()
@@ -99,7 +100,7 @@ const mapPartnerForUser = (partnership: any, userId: string) => {
 }
 
 // Update user profile
-router.put('/profile', authenticate, requireCsrf, async (req: any, res: any) => {
+router.put('/profile', authenticate, requireCsrf, writeRateLimit, async (req: any, res: any) => {
   try {
     const { value, error } = profileSchema.validate(req.body, {
       abortEarly: true,
@@ -458,7 +459,7 @@ router.get('/partnerships', authenticate, async (req: any, res: any) => {
 })
 
 // Send partnership invite
-router.post('/partnership', authenticate, requireCsrf, async (req: any, res: any) => {
+router.post('/partnership', authenticate, requireCsrf, partnershipActionRateLimit, async (req: any, res: any) => {
   try {
     const { value, error } = partnershipSchema.validate(req.body, {
       abortEarly: true,
@@ -548,7 +549,7 @@ router.post('/partnership', authenticate, requireCsrf, async (req: any, res: any
 })
 
 // Accept partnership invite
-router.post('/partnership/:id/accept', authenticate, requireCsrf, async (req: any, res: any) => {
+router.post('/partnership/:id/accept', authenticate, requireCsrf, partnershipActionRateLimit, async (req: any, res: any) => {
   try {
     const { value, error } = partnershipIdSchema.validate(req.params, {
       abortEarly: true,
@@ -593,7 +594,7 @@ router.post('/partnership/:id/accept', authenticate, requireCsrf, async (req: an
 })
 
 // Decline partnership invite
-router.post('/partnership/:id/decline', authenticate, requireCsrf, async (req: any, res: any) => {
+router.post('/partnership/:id/decline', authenticate, requireCsrf, partnershipActionRateLimit, async (req: any, res: any) => {
   try {
     const { value, error } = partnershipIdSchema.validate(req.params, {
       abortEarly: true,
@@ -635,7 +636,7 @@ router.post('/partnership/:id/decline', authenticate, requireCsrf, async (req: a
 })
 
 // Disconnect active partnership
-router.delete('/partnership/:id', authenticate, requireCsrf, async (req: any, res: any) => {
+router.delete('/partnership/:id', authenticate, requireCsrf, partnershipActionRateLimit, async (req: any, res: any) => {
   try {
     const { value, error } = partnershipIdSchema.validate(req.params, {
       abortEarly: true,

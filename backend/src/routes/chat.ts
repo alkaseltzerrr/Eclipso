@@ -1,6 +1,7 @@
 import express from 'express'
 import { authenticate } from '../middleware/authMiddleware'
 import { requireCsrf } from '../middleware/csrfMiddleware'
+import { writeRateLimit } from '../middleware/rateLimitMiddleware'
 import prisma from '../lib/prisma'
 
 const router = express.Router()
@@ -90,7 +91,7 @@ router.get('/messages', authenticate, async (req: any, res: any) => {
 })
 
 // Create a new message
-router.post('/messages', authenticate, requireCsrf, async (req: any, res: any) => {
+router.post('/messages', authenticate, requireCsrf, writeRateLimit, async (req: any, res: any) => {
   try {
     const { content, receiverId, type = 'text' } = req.body
     const senderId = req.user.id
@@ -129,7 +130,7 @@ router.post('/messages', authenticate, requireCsrf, async (req: any, res: any) =
 })
 
 // Mark messages as read
-router.put('/messages/read', authenticate, requireCsrf, async (req: any, res: any) => {
+router.put('/messages/read', authenticate, requireCsrf, writeRateLimit, async (req: any, res: any) => {
   try {
     const userId = req.user.id
     const { partnerId } = req.body
@@ -212,7 +213,7 @@ router.get('/capsules', authenticate, async (req: any, res: any) => {
 })
 
 // Create a new capsule
-router.post('/capsules', authenticate, requireCsrf, async (req: any, res: any) => {
+router.post('/capsules', authenticate, requireCsrf, writeRateLimit, async (req: any, res: any) => {
   try {
     const { title, content, type = 'text', isLocked = false } = req.body
     const userId = req.user.id
@@ -265,7 +266,7 @@ router.post('/capsules', authenticate, requireCsrf, async (req: any, res: any) =
 })
 
 // Unlock a capsule
-router.put('/capsules/:id/unlock', authenticate, requireCsrf, async (req: any, res: any) => {
+router.put('/capsules/:id/unlock', authenticate, requireCsrf, writeRateLimit, async (req: any, res: any) => {
   try {
     const { id } = req.params
     const userId = req.user.id

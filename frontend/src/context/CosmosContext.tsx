@@ -44,9 +44,7 @@ export const CosmosProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   useEffect(() => {
     const loadCosmos = async () => {
-      const token = localStorage.getItem('token')
-
-      if (!user || !token) {
+      if (!user) {
         setStars([])
         setConstellations([])
         setOrbitLevel(10)
@@ -55,9 +53,7 @@ export const CosmosProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
       try {
         const response = await fetch('/api/users/cosmos', {
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
+          credentials: 'include'
         })
 
         if (!response.ok) {

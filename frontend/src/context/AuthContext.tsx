@@ -15,7 +15,7 @@ interface AuthContextType {
   isLoading: boolean
   login: (email: string, password: string) => Promise<void>
   register: (email: string, password: string, username: string) => Promise<void>
-  logout: () => void
+  logout: () => Promise<void>
   updateProfile: (data: Partial<User>) => Promise<void>
 }
 
@@ -34,32 +34,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    const token = localStorage.getItem('token')
-    if (token) {
-      // Validate token and fetch user
-      fetchUser(token)
-    } else {
-      setIsLoading(false)
-    }
+    fetchUser()
   }, [])
 
-  const fetchUser = async (token: string) => {
+  const fetchUser = async () => {
     try {
       const response = await fetch('/api/auth/me', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+        credentials: 'include'
       })
       
       if (response.ok) {
         const userData = await response.json()
         setUser(userData)
       } else {
-        localStorage.removeItem('token')
+        setUser(null)
       }
     } catch (error) {
       console.error('Failed to fetch user:', error)
-      localStorage.removeItem('token')
+      setUser(null)
     } finally {
       setIsLoading(false)
     }
@@ -68,6 +60,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = async (email: string, password: string) => {
     const response = await fetch('/api/auth/login', {
       method: 'POST',
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
       },
@@ -79,14 +72,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       throw new Error(error.message || 'Login failed')
     }
 
-    const { token, user: userData } = await response.json()
-    localStorage.setItem('token', token)
+    const { user: userData } = await response.json()
     setUser(userData)
   }
 
   const register = async (email: string, password: string, username: string) => {
     const response = await fetch('/api/auth/register', {
       method: 'POST',
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
       },
@@ -98,23 +91,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       throw new Error(error.message || 'Registration failed')
     }
 
-    const { token, user: userData } = await response.json()
-    localStorage.setItem('token', token)
+    const { user: userData } = await response.json()
     setUser(userData)
   }
 
-  const logout = () => {
-    localStorage.removeItem('token')
+  const logout = async () => {
+    try {
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include'
+      })
+    } catch (error) {
+      console.error('Logout request failed:', error)
+    }
+
     setUser(null)
   }
 
   const updateProfile = async (data: Partial<User>) => {
-    const token = localStorage.getItem('token')
     const response = await fetch('/api/users/profile', {
       method: 'PUT',
+      credentials: 'include',
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify(data),
     })

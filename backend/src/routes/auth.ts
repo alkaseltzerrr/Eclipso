@@ -3,8 +3,34 @@ import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import Joi from 'joi'
 import prisma from '../lib/prisma'
+import { AUTH_COOKIE_NAME, authenticate } from '../middleware/authMiddleware'
 
 const router = express.Router()
+const AUTH_COOKIE_MAX_AGE = 7 * 24 * 60 * 60 * 1000
+
+const getAuthCookieOptions = () => {
+  return {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax' as const,
+    maxAge: AUTH_COOKIE_MAX_AGE,
+    path: '/'
+  }
+}
+
+const setAuthCookie = (res: express.Response, token: string) => {
+  res.cookie(AUTH_COOKIE_NAME, token, getAuthCookieOptions())
+}
+
+const clearAuthCookie = (res: express.Response) => {
+  const options = getAuthCookieOptions()
+  res.clearCookie(AUTH_COOKIE_NAME, {
+    httpOnly: options.httpOnly,
+    secure: options.secure,
+    sameSite: options.sameSite,
+    path: options.path
+  })
+}
 
 const registerSchema = Joi.object({
   email: Joi.string().trim().lowercase().email().max(254).required(),
@@ -70,8 +96,9 @@ router.post('/register', async (req, res) => {
     // Return user data (without password)
     const { password: _, ...userWithoutPassword } = user
 
+    setAuthCookie(res, token)
+
     res.status(201).json({
-      token,
       user: userWithoutPassword
     })
   } catch (error) {
@@ -129,8 +156,9 @@ router.post('/login', async (req, res) => {
     const userInterests = user.interests.map((ui: any) => ui.interest.name)
     const { password: _, interests: __, ...userWithoutPassword } = user
 
+    setAuthCookie(res, token)
+
     res.json({
-      token,
       user: {
         ...userWithoutPassword,
         interests: userInterests
@@ -143,19 +171,10 @@ router.post('/login', async (req, res) => {
 })
 
 // Get current user
-router.get('/me', async (req, res) => {
+router.get('/me', authenticate, async (req: any, res) => {
   try {
-    const authHeader = req.header('Authorization')
-    const token = authHeader && authHeader.split(' ')[1]
-
-    if (!token) {
-      return res.status(401).json({ message: 'Access denied' })
-    }
-
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any
-    
     const user = await prisma.user.findUnique({
-      where: { id: decoded.id },
+      where: { id: req.user.id },
       include: {
         interests: {
           include: {
@@ -194,6 +213,11 @@ router.get('/me', async (req, res) => {
     console.error('Get user error:', error)
     res.status(500).json({ message: 'Server error' })
   }
+})
+
+router.post('/logout', (req, res) => {
+  clearAuthCookie(res)
+  res.status(204).send()
 })
 
 export default router

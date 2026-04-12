@@ -53,12 +53,6 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }
 
   const fetchMessages = async (options: { partnerId: string; cursor?: string; prepend?: boolean }) => {
-    const token = localStorage.getItem('token')
-
-    if (!token) {
-      return
-    }
-
     const { partnerId, cursor, prepend = false } = options
     const params = new URLSearchParams({
       partnerId,
@@ -73,9 +67,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     try {
       const response = await fetch(`/api/chat/messages?${params.toString()}`, {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
+        credentials: 'include'
       })
 
       if (!response.ok) {
@@ -106,11 +98,8 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   useEffect(() => {
     if (user) {
-      const token = localStorage.getItem('token')
       const socketInstance = io(socketUrl, {
-        auth: {
-          token,
-        },
+        withCredentials: true
       })
 
       socketInstance.on('connect', () => {

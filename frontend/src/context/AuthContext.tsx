@@ -18,6 +18,7 @@ interface AuthContextType {
   register: (email: string, password: string, username: string) => Promise<void>
   logout: () => Promise<void>
   updateProfile: (data: Partial<User>) => Promise<void>
+  refreshUser: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | null>(null)
@@ -138,8 +139,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       throw new Error(error.message || 'Profile update failed')
     }
 
-    const updatedUser = await response.json()
-    setUser(updatedUser)
+    await fetchUser()
   }
 
   return (
@@ -150,6 +150,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       register,
       logout,
       updateProfile,
+      refreshUser: fetchUser,
     }}>
       {children}
     </AuthContext.Provider>

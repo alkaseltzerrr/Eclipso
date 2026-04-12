@@ -24,6 +24,7 @@ interface SocketContextType {
   sendMessage: (content: string, type?: 'text' | 'capsule') => void
   markMessagesRead: () => void
   setTyping: (isTyping: boolean) => void
+  socketNotice: string | null
   loadOlderMessages: () => Promise<void>
   hasMoreMessages: boolean
   isLoadingMessages: boolean
@@ -49,6 +50,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [hasMoreMessages, setHasMoreMessages] = useState(false)
   const [isLoadingMessages, setIsLoadingMessages] = useState(false)
   const [isConnected, setIsConnected] = useState(false)
+  const [socketNotice, setSocketNotice] = useState<string | null>(null)
   const [partnerPresence, setPartnerPresence] = useState<PartnerPresence | null>(null)
   const [partnerTyping, setPartnerTyping] = useState(false)
   const { user } = useAuth()
@@ -105,6 +107,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setHasMoreMessages(Boolean(data.hasMore))
     } catch (error) {
       console.error('Failed to load message history:', error)
+      setSocketNotice('Failed to load chat history.')
     } finally {
       setIsLoadingMessages(false)
     }
@@ -120,6 +123,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setMessages([])
         setNextCursor(null)
         setHasMoreMessages(false)
+        setSocketNotice(null)
         setPartnerPresence(null)
         setPartnerTyping(false)
         return
@@ -138,6 +142,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
       socketInstance.on('connect', () => {
         setIsConnected(true)
+        setSocketNotice(null)
 
         if (user.partnerId) {
           socketInstance?.emit('joinPartnerRoom', {
@@ -204,11 +209,13 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
       socketInstance.on('errorMessage', (payload: { code?: string; message?: string }) => {
         if (payload?.code === 'csrf_mismatch') {
+          setSocketNotice('Session check failed. Reconnecting...')
           socketInstance?.disconnect()
           socketInstance?.connect()
           return
         }
 
+        setSocketNotice(payload?.message || 'Socket error occurred')
         console.error('Socket error:', payload?.message || 'Unknown socket error')
       })
 
@@ -228,6 +235,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setMessages([])
     setNextCursor(null)
     setHasMoreMessages(false)
+    setSocketNotice(null)
     setPartnerPresence(null)
     setPartnerTyping(false)
   }, [user, socketUrl])
@@ -237,6 +245,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setMessages([])
       setNextCursor(null)
       setHasMoreMessages(false)
+      setSocketNotice(null)
       setPartnerPresence(null)
       setPartnerTyping(false)
       return
@@ -310,6 +319,20 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     markMessagesRead()
   }, [messages, user?.partnerId, socket, isConnected])
 
+  useEffect(() => {
+    if (!socketNotice) {
+      return
+    }
+
+    const timeout = window.setTimeout(() => {
+      setSocketNotice(null)
+    }, 4000)
+
+    return () => {
+      window.clearTimeout(timeout)
+    }
+  }, [socketNotice])
+
   return (
     <SocketContext.Provider value={{
       socket,
@@ -317,6 +340,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       sendMessage,
       markMessagesRead,
       setTyping,
+      socketNotice,
       loadOlderMessages,
       hasMoreMessages,
       isLoadingMessages,

@@ -15,7 +15,8 @@ const Chat: React.FC = () => {
     isLoadingMessages,
     partnerPresence,
     partnerTyping,
-    setTyping
+    setTyping,
+    socketNotice
   } = useSocket()
   const { user } = useAuth()
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -141,6 +142,11 @@ const Chat: React.FC = () => {
               : partnerPresence?.isOnline
               ? 'Partner online'
               : formatLastSeen(partnerPresence?.lastSeenAt || null)}
+          </div>
+        )}
+        {socketNotice && (
+          <div className="mt-2 text-xs text-red-300 bg-red-950/40 border border-red-500/30 rounded px-2 py-1">
+            {socketNotice}
           </div>
         )}
       </div>

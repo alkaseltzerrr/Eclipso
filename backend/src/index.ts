@@ -26,6 +26,78 @@ const io = new Server(server, {
 
 const PORT = process.env.PORT || 5000
 
+const onlineUsers = new Map<string, { connections: number; lastSeenAt: string | null }>()
+
+const markUserConnected = (userId: string) => {
+  const current = onlineUsers.get(userId)
+
+  if (!current) {
+    onlineUsers.set(userId, {
+      connections: 1,
+      lastSeenAt: null
+    })
+    return
+  }
+
+  onlineUsers.set(userId, {
+    connections: current.connections + 1,
+    lastSeenAt: null
+  })
+}
+
+const markUserDisconnected = (userId: string) => {
+  const current = onlineUsers.get(userId)
+
+  if (!current) {
+    return {
+      isOnline: false,
+      lastSeenAt: new Date().toISOString()
+    }
+  }
+
+  const remainingConnections = current.connections - 1
+
+  if (remainingConnections > 0) {
+    onlineUsers.set(userId, {
+      connections: remainingConnections,
+      lastSeenAt: null
+    })
+
+    return {
+      isOnline: true,
+      lastSeenAt: null
+    }
+  }
+
+  const lastSeenAt = new Date().toISOString()
+
+  onlineUsers.set(userId, {
+    connections: 0,
+    lastSeenAt
+  })
+
+  return {
+    isOnline: false,
+    lastSeenAt
+  }
+}
+
+const getPresence = (userId: string) => {
+  const current = onlineUsers.get(userId)
+
+  if (!current || current.connections <= 0) {
+    return {
+      isOnline: false,
+      lastSeenAt: current?.lastSeenAt || null
+    }
+  }
+
+  return {
+    isOnline: true,
+    lastSeenAt: null
+  }
+}
+
 // Middleware
 app.use(helmet())
 app.use(cors({
@@ -50,6 +122,8 @@ io.use(authenticateSocket)
 
 io.on('connection', (socket) => {
   const userId = socket.data.userId
+
+  markUserConnected(userId)
 
   const hasValidSocketCsrf = (payload: any) => {
     const expectedToken = socket.data.csrfToken as string | undefined
@@ -83,6 +157,26 @@ io.on('connection', (socket) => {
     return [userId, peerId].sort().join(':')
   }
 
+  const emitPresenceToRoom = (roomName: string, targetUserId: string) => {
+    const presence = getPresence(targetUserId)
+
+    io.to(roomName).emit('presenceUpdate', {
+      userId: targetUserId,
+      isOnline: presence.isOnline,
+      lastSeenAt: presence.lastSeenAt
+    })
+  }
+
+  const emitPresenceToSocket = (targetSocket: typeof socket, targetUserId: string) => {
+    const presence = getPresence(targetUserId)
+
+    targetSocket.emit('presenceUpdate', {
+      userId: targetUserId,
+      isOnline: presence.isOnline,
+      lastSeenAt: presence.lastSeenAt
+    })
+  }
+
   console.log(`User ${userId} connected`)
 
   // Join user to their personal room
@@ -112,7 +206,12 @@ io.on('connection', (socket) => {
     }
 
     const roomId = buildRoomId(partnerId)
-    socket.join(`room:${roomId}`)
+    const roomName = `room:${roomId}`
+    socket.join(roomName)
+
+    emitPresenceToSocket(socket, partnerId)
+    emitPresenceToRoom(roomName, userId)
+
     console.log(`User ${userId} joined room with partner ${partnerId}`)
   })
 
@@ -172,7 +271,8 @@ io.on('connection', (socket) => {
         receiverId: partnerId,
         content: message.content,
         type,
-        timestamp: message.createdAt.toISOString()
+        timestamp: message.createdAt.toISOString(),
+        readAt: message.readAt ? message.readAt.toISOString() : null
       }
 
       // Emit only to shared partner room (sender + partner)
@@ -181,6 +281,59 @@ io.on('connection', (socket) => {
       console.log(`Message from ${userId}: ${message.content}`)
     } catch (error) {
       console.error('Error handling message:', error)
+    }
+  })
+
+  socket.on('markRead', async (data) => {
+    try {
+      if (!hasValidSocketCsrf(data)) {
+        socket.emit('errorMessage', {
+          code: 'csrf_mismatch',
+          message: 'Invalid CSRF token for socket event'
+        })
+        return
+      }
+
+      const partnerId = data?.partnerId
+
+      if (!partnerId || typeof partnerId !== 'string') {
+        return
+      }
+
+      const activePartnership = await hasActivePartnership(partnerId)
+
+      if (!activePartnership) {
+        socket.emit('errorMessage', { message: 'No active partnership with this user' })
+        return
+      }
+
+      const readAt = new Date()
+
+      const updated = await prisma.message.updateMany({
+        where: {
+          senderId: partnerId,
+          receiverId: userId,
+          partnershipId: activePartnership.id,
+          readAt: null
+        },
+        data: {
+          readAt
+        }
+      })
+
+      if (updated.count === 0) {
+        return
+      }
+
+      const roomName = `room:${buildRoomId(partnerId)}`
+
+      io.to(roomName).emit('messagesRead', {
+        readerId: userId,
+        senderId: partnerId,
+        readAt: readAt.toISOString()
+      })
+    } catch (error) {
+      console.error('Error marking messages as read:', error)
     }
   })
 
@@ -195,6 +348,20 @@ io.on('connection', (socket) => {
   })
 
   socket.on('disconnect', () => {
+    const presence = markUserDisconnected(userId)
+
+    if (!presence.isOnline) {
+      const partnerRooms = Array.from(socket.rooms).filter((roomName) => roomName.startsWith('room:'))
+
+      for (const roomName of partnerRooms) {
+        io.to(roomName).emit('presenceUpdate', {
+          userId,
+          isOnline: false,
+          lastSeenAt: presence.lastSeenAt
+        })
+      }
+    }
+
     console.log(`User ${userId} disconnected`)
   })
 })

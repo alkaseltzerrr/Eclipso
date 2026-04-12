@@ -10,16 +10,24 @@ interface Message {
   content: string
   timestamp: string
   type: 'text' | 'capsule'
+  readAt?: string | null
+}
+
+interface PartnerPresence {
+  isOnline: boolean
+  lastSeenAt: string | null
 }
 
 interface SocketContextType {
   socket: Socket | null
   messages: Message[]
   sendMessage: (content: string, type?: 'text' | 'capsule') => void
+  markMessagesRead: () => void
   loadOlderMessages: () => Promise<void>
   hasMoreMessages: boolean
   isLoadingMessages: boolean
   isConnected: boolean
+  partnerPresence: PartnerPresence | null
 }
 
 const SocketContext = createContext<SocketContextType | null>(null)
@@ -39,6 +47,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [hasMoreMessages, setHasMoreMessages] = useState(false)
   const [isLoadingMessages, setIsLoadingMessages] = useState(false)
   const [isConnected, setIsConnected] = useState(false)
+  const [partnerPresence, setPartnerPresence] = useState<PartnerPresence | null>(null)
   const { user } = useAuth()
   const socketUrl = import.meta.env.VITE_SOCKET_URL?.trim() || window.location.origin
 
@@ -49,7 +58,8 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       receiverId: incoming.receiverId,
       content: incoming.content,
       type: incoming.type,
-      timestamp: incoming.timestamp || incoming.createdAt || new Date().toISOString()
+      timestamp: incoming.timestamp || incoming.createdAt || new Date().toISOString(),
+      readAt: incoming.readAt || null
     }
   }
 
@@ -107,6 +117,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setMessages([])
         setNextCursor(null)
         setHasMoreMessages(false)
+        setPartnerPresence(null)
         return
       }
 
@@ -151,6 +162,34 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         })
       })
 
+      socketInstance.on('messagesRead', (payload: { senderId?: string; readAt?: string }) => {
+        if (!payload.senderId || !payload.readAt) {
+          return
+        }
+
+        setMessages((prev) => prev.map((msg) => {
+          if (msg.senderId === payload.senderId && !msg.readAt) {
+            return {
+              ...msg,
+              readAt: payload.readAt
+            }
+          }
+
+          return msg
+        }))
+      })
+
+      socketInstance.on('presenceUpdate', (payload: { userId?: string; isOnline?: boolean; lastSeenAt?: string | null }) => {
+        if (!user.partnerId || payload.userId !== user.partnerId) {
+          return
+        }
+
+        setPartnerPresence({
+          isOnline: Boolean(payload.isOnline),
+          lastSeenAt: payload.lastSeenAt || null
+        })
+      })
+
       socketInstance.on('errorMessage', (payload: { code?: string; message?: string }) => {
         if (payload?.code === 'csrf_mismatch') {
           socketInstance?.disconnect()
@@ -177,6 +216,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setMessages([])
     setNextCursor(null)
     setHasMoreMessages(false)
+    setPartnerPresence(null)
   }, [user, socketUrl])
 
   useEffect(() => {
@@ -184,6 +224,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setMessages([])
       setNextCursor(null)
       setHasMoreMessages(false)
+      setPartnerPresence(null)
       return
     }
 
@@ -219,15 +260,42 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }
 
+  const markMessagesRead = () => {
+    if (!socket || !user?.partnerId) {
+      return
+    }
+
+    socket.emit('markRead', {
+      partnerId: user.partnerId,
+      csrfToken: getCsrfTokenFromCookie()
+    })
+  }
+
+  useEffect(() => {
+    if (!user?.partnerId || !socket || !isConnected) {
+      return
+    }
+
+    const hasUnreadIncoming = messages.some((msg) => msg.senderId === user.partnerId && !msg.readAt)
+
+    if (!hasUnreadIncoming) {
+      return
+    }
+
+    markMessagesRead()
+  }, [messages, user?.partnerId, socket, isConnected])
+
   return (
     <SocketContext.Provider value={{
       socket,
       messages,
       sendMessage,
+      markMessagesRead,
       loadOlderMessages,
       hasMoreMessages,
       isLoadingMessages,
       isConnected,
+      partnerPresence,
     }}>
       {children}
     </SocketContext.Provider>

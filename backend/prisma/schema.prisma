@@ -81,6 +81,7 @@ model Message {
   receiverId    String
   partnershipId String?
   createdAt     DateTime @default(now())
+  readAt        DateTime?
 
   sender       User         @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
   receiver     User         @relation("MessageReceiver", fields: [receiverId], references: [id], onDelete: Cascade)

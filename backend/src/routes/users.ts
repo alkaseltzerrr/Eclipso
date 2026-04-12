@@ -1,6 +1,7 @@
 import express from 'express'
 import Joi from 'joi'
 import { authenticate } from '../middleware/authMiddleware'
+import { requireCsrf } from '../middleware/csrfMiddleware'
 import prisma from '../lib/prisma'
 
 const router = express.Router()
@@ -70,7 +71,7 @@ const buildFallbackConstellations = (stars: any[]) => {
 }
 
 // Update user profile
-router.put('/profile', authenticate, async (req: any, res: any) => {
+router.put('/profile', authenticate, requireCsrf, async (req: any, res: any) => {
   try {
     const { value, error } = profileSchema.validate(req.body, {
       abortEarly: true,
@@ -329,7 +330,7 @@ router.get('/cosmos', authenticate, async (req: any, res: any) => {
 })
 
 // Create or update partnership
-router.post('/partnership', authenticate, async (req: any, res: any) => {
+router.post('/partnership', authenticate, requireCsrf, async (req: any, res: any) => {
   try {
     const { value, error } = partnershipSchema.validate(req.body, {
       abortEarly: true,

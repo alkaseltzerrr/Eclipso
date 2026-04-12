@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
+import { ensureCsrfToken, withCsrfHeader } from '../utils/csrf'
 
 interface User {
   id: string
@@ -34,7 +35,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    fetchUser()
+    const bootstrapAuth = async () => {
+      await ensureCsrfToken()
+      await fetchUser()
+    }
+
+    bootstrapAuth()
   }, [])
 
   const fetchUser = async () => {
@@ -58,12 +64,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }
 
   const login = async (email: string, password: string) => {
+    const csrfHeaders = await withCsrfHeader({
+      'Content-Type': 'application/json'
+    })
+
     const response = await fetch('/api/auth/login', {
       method: 'POST',
       credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: csrfHeaders,
       body: JSON.stringify({ email, password }),
     })
 
@@ -77,12 +85,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }
 
   const register = async (email: string, password: string, username: string) => {
+    const csrfHeaders = await withCsrfHeader({
+      'Content-Type': 'application/json'
+    })
+
     const response = await fetch('/api/auth/register', {
       method: 'POST',
       credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: csrfHeaders,
       body: JSON.stringify({ email, password, username }),
     })
 
@@ -97,9 +107,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = async () => {
     try {
+      const csrfHeaders = await withCsrfHeader()
+
       await fetch('/api/auth/logout', {
         method: 'POST',
-        credentials: 'include'
+        credentials: 'include',
+        headers: csrfHeaders
       })
     } catch (error) {
       console.error('Logout request failed:', error)
@@ -109,12 +122,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }
 
   const updateProfile = async (data: Partial<User>) => {
+    const csrfHeaders = await withCsrfHeader({
+      'Content-Type': 'application/json'
+    })
+
     const response = await fetch('/api/users/profile', {
       method: 'PUT',
       credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json'
-      },
+      headers: csrfHeaders,
       body: JSON.stringify(data),
     })
 

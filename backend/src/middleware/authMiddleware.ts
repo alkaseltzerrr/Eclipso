@@ -1,32 +1,10 @@
 import jwt from 'jsonwebtoken'
 import { Request, Response, NextFunction } from 'express'
 import { Socket } from 'socket.io'
+import { CSRF_COOKIE_NAME } from './csrfMiddleware'
+import { parseCookieHeader } from '../utils/cookie'
 
 export const AUTH_COOKIE_NAME = 'auth_token'
-
-const parseCookieHeader = (cookieHeader?: string) => {
-  if (!cookieHeader) {
-    return {}
-  }
-
-  return cookieHeader
-    .split(';')
-    .map((part) => part.trim())
-    .filter(Boolean)
-    .reduce<Record<string, string>>((acc, part) => {
-      const separatorIndex = part.indexOf('=')
-
-      if (separatorIndex <= 0) {
-        return acc
-      }
-
-      const key = part.slice(0, separatorIndex).trim()
-      const value = decodeURIComponent(part.slice(separatorIndex + 1).trim())
-
-      acc[key] = value
-      return acc
-    }, {})
-}
 
 export const extractTokenFromRequest = (req: Request) => {
   const authHeader = req.header('Authorization')
@@ -76,10 +54,21 @@ export const authenticate = (req: AuthRequest, res: Response, next: NextFunction
 }
 
 export const authenticateSocket = (socket: Socket, next: (err?: Error) => void) => {
+  const cookies = parseCookieHeader(socket.handshake.headers.cookie)
   const token = extractTokenFromSocket(socket)
 
   if (!token) {
     return next(new Error('Authentication error'))
+  }
+
+  // Enforce CSRF proof for cookie-based socket auth
+  if (cookies[AUTH_COOKIE_NAME]) {
+    const csrfCookie = cookies[CSRF_COOKIE_NAME]
+    const csrfToken = socket.handshake.auth?.csrfToken
+
+    if (!csrfCookie || !csrfToken || csrfCookie !== csrfToken) {
+      return next(new Error('CSRF validation failed'))
+    }
   }
 
   try {

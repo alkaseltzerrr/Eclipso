@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken'
 import Joi from 'joi'
 import prisma from '../lib/prisma'
 import { AUTH_COOKIE_NAME, authenticate } from '../middleware/authMiddleware'
+import { clearCsrfToken, issueCsrfToken, requireCsrf } from '../middleware/csrfMiddleware'
 
 const router = express.Router()
 const AUTH_COOKIE_MAX_AGE = 7 * 24 * 60 * 60 * 1000
@@ -97,8 +98,10 @@ router.post('/register', async (req, res) => {
     const { password: _, ...userWithoutPassword } = user
 
     setAuthCookie(res, token)
+    const csrfToken = issueCsrfToken(res)
 
     res.status(201).json({
+      csrfToken,
       user: userWithoutPassword
     })
   } catch (error) {
@@ -157,8 +160,10 @@ router.post('/login', async (req, res) => {
     const { password: _, interests: __, ...userWithoutPassword } = user
 
     setAuthCookie(res, token)
+    const csrfToken = issueCsrfToken(res)
 
     res.json({
+      csrfToken,
       user: {
         ...userWithoutPassword,
         interests: userInterests
@@ -215,8 +220,14 @@ router.get('/me', authenticate, async (req: any, res) => {
   }
 })
 
-router.post('/logout', (req, res) => {
+router.get('/csrf', (req, res) => {
+  const csrfToken = issueCsrfToken(res)
+  res.json({ csrfToken })
+})
+
+router.post('/logout', requireCsrf, (req, res) => {
   clearAuthCookie(res)
+  clearCsrfToken(res)
   res.status(204).send()
 })
 

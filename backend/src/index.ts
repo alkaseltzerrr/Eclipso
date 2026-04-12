@@ -51,6 +51,20 @@ io.use(authenticateSocket)
 io.on('connection', (socket) => {
   const userId = socket.data.userId
 
+  const hasValidSocketCsrf = (payload: any) => {
+    const expectedToken = socket.data.csrfToken as string | undefined
+
+    if (!expectedToken) {
+      return true
+    }
+
+    if (!payload || typeof payload !== 'object') {
+      return false
+    }
+
+    return payload.csrfToken === expectedToken
+  }
+
   const hasActivePartnership = async (partnerId: string) => {
     const partnership = await prisma.partnership.findFirst({
       where: {
@@ -75,7 +89,17 @@ io.on('connection', (socket) => {
   socket.join(`user:${userId}`)
 
   // Handle joining partner room if they have a partner
-  socket.on('joinPartnerRoom', async (partnerId: string) => {
+  socket.on('joinPartnerRoom', async (payload: any) => {
+    if (!hasValidSocketCsrf(payload)) {
+      socket.emit('errorMessage', {
+        code: 'csrf_mismatch',
+        message: 'Invalid CSRF token for socket event'
+      })
+      return
+    }
+
+    const partnerId = typeof payload === 'string' ? payload : payload?.partnerId
+
     if (!partnerId || typeof partnerId !== 'string') {
       return
     }
@@ -95,6 +119,14 @@ io.on('connection', (socket) => {
   // Handle chat messages
   socket.on('message', async (data) => {
     try {
+      if (!hasValidSocketCsrf(data)) {
+        socket.emit('errorMessage', {
+          code: 'csrf_mismatch',
+          message: 'Invalid CSRF token for socket event'
+        })
+        return
+      }
+
       const { content, partnerId, type = 'text' } = data
 
       if (!partnerId || typeof partnerId !== 'string') {

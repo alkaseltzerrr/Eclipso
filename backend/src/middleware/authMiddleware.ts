@@ -56,6 +56,7 @@ export const authenticate = (req: AuthRequest, res: Response, next: NextFunction
 export const authenticateSocket = (socket: Socket, next: (err?: Error) => void) => {
   const cookies = parseCookieHeader(socket.handshake.headers.cookie)
   const token = extractTokenFromSocket(socket)
+  let validatedCsrfToken: string | undefined
 
   if (!token) {
     return next(new Error('Authentication error'))
@@ -69,12 +70,15 @@ export const authenticateSocket = (socket: Socket, next: (err?: Error) => void) 
     if (!csrfCookie || !csrfToken || csrfCookie !== csrfToken) {
       return next(new Error('CSRF validation failed'))
     }
+
+    validatedCsrfToken = csrfCookie
   }
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any
     socket.data.userId = decoded.id
     socket.data.user = decoded
+    socket.data.csrfToken = validatedCsrfToken
     next()
   } catch (error) {
     next(new Error('Authentication error'))

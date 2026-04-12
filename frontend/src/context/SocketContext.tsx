@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react'
 import io, { Socket } from 'socket.io-client'
 import { useAuth } from './AuthContext'
 import { ensureCsrfToken, getCsrfTokenFromCookie } from '../utils/csrf'
+import { getApiErrorMessage } from '../utils/api'
 
 interface Message {
   id: string
@@ -87,7 +88,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       })
 
       if (!response.ok) {
-        throw new Error('Failed to load messages')
+        throw new Error(await getApiErrorMessage(response, 'Failed to load messages'))
       }
 
       const data = await response.json()
@@ -107,7 +108,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setHasMoreMessages(Boolean(data.hasMore))
     } catch (error) {
       console.error('Failed to load message history:', error)
-      setSocketNotice('Failed to load chat history.')
+      setSocketNotice(error instanceof Error ? error.message : 'Failed to load chat history.')
     } finally {
       setIsLoadingMessages(false)
     }

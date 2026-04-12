@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { Link2, Mail, UserPlus, UserCheck, UserX, Unlink2 } from 'lucide-react'
 import { withCsrfHeader } from '../utils/csrf'
 import { useAuth } from '../context/AuthContext'
+import { getApiErrorMessage } from '../utils/api'
 
 interface PartnerSummary {
   id: string
@@ -45,7 +46,7 @@ const PartnerManager: React.FC = () => {
       })
 
       if (!response.ok) {
-        throw new Error('Failed to load partnerships')
+        throw new Error(await getApiErrorMessage(response, 'Failed to load partnerships'))
       }
 
       const payload = await response.json()
@@ -88,8 +89,7 @@ const PartnerManager: React.FC = () => {
       })
 
       if (!response.ok) {
-        const payload = await response.json()
-        throw new Error(payload.message || 'Failed to send invite')
+        throw new Error(await getApiErrorMessage(response, 'Failed to send invite'))
       }
 
       const payload = await response.json()
@@ -118,8 +118,7 @@ const PartnerManager: React.FC = () => {
       })
 
       if (!response.ok) {
-        const payload = await response.json()
-        throw new Error(payload.message || 'Failed to accept invite')
+        throw new Error(await getApiErrorMessage(response, 'Failed to accept invite'))
       }
 
       setSuccess('Invite accepted')
@@ -146,8 +145,7 @@ const PartnerManager: React.FC = () => {
       })
 
       if (!response.ok) {
-        const payload = await response.json()
-        throw new Error(payload.message || 'Failed to decline invite')
+        throw new Error(await getApiErrorMessage(response, 'Failed to decline invite'))
       }
 
       setSuccess('Invite declined')
@@ -174,8 +172,7 @@ const PartnerManager: React.FC = () => {
       })
 
       if (!response.ok) {
-        const payload = await response.json()
-        throw new Error(payload.message || 'Failed to disconnect partnership')
+        throw new Error(await getApiErrorMessage(response, 'Failed to disconnect partnership'))
       }
 
       setSuccess('Partnership disconnected')

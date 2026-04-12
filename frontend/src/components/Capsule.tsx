@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Package, Heart, Image, Mic, FileText, X } from 'lucide-react'
 import { withCsrfHeader } from '../utils/csrf'
+import { getApiErrorMessage } from '../utils/api'
+import { useAuth } from '../context/AuthContext'
 
 interface CapsuleData {
   id: string
@@ -16,6 +18,7 @@ interface CapsuleData {
 }
 
 const Capsule: React.FC = () => {
+  const { user } = useAuth()
   const [isOpen, setIsOpen] = useState(false)
   const [activeTab, setActiveTab] = useState<'view' | 'create'>('view')
   const [capsules, setCapsules] = useState<CapsuleData[]>([])
@@ -25,7 +28,8 @@ const Capsule: React.FC = () => {
   const [newCapsule, setNewCapsule] = useState({
     title: '',
     content: '',
-    type: 'text' as const
+    type: 'text' as const,
+    isLocked: false
   })
 
   const normalizeCapsule = (capsule: any): CapsuleData => {
@@ -52,14 +56,14 @@ const Capsule: React.FC = () => {
       })
 
       if (!response.ok) {
-        throw new Error('Failed to load capsules')
+        throw new Error(await getApiErrorMessage(response, 'Failed to load capsules'))
       }
 
       const data = await response.json()
       setCapsules((data || []).map(normalizeCapsule))
     } catch (error) {
       console.error('Load capsules error:', error)
-      setActionError('Failed to load capsules')
+      setActionError(error instanceof Error ? error.message : 'Failed to load capsules')
     } finally {
       setIsLoading(false)
     }
@@ -92,21 +96,21 @@ const Capsule: React.FC = () => {
           title: newCapsule.title,
           content: newCapsule.content,
           type: newCapsule.type,
-          isLocked: false
+          isLocked: newCapsule.isLocked
         })
       })
 
       if (!response.ok) {
-        throw new Error('Failed to create capsule')
+        throw new Error(await getApiErrorMessage(response, 'Failed to create capsule'))
       }
 
       const createdCapsule = normalizeCapsule(await response.json())
       setCapsules((prev) => [createdCapsule, ...prev])
-      setNewCapsule({ title: '', content: '', type: 'text' })
+      setNewCapsule({ title: '', content: '', type: 'text', isLocked: false })
       setActiveTab('view')
     } catch (error) {
       console.error('Create capsule error:', error)
-      setActionError('Failed to create capsule')
+      setActionError(error instanceof Error ? error.message : 'Failed to create capsule')
     } finally {
       setIsCreating(false)
     }
@@ -125,7 +129,7 @@ const Capsule: React.FC = () => {
       })
 
       if (!response.ok) {
-        throw new Error('Failed to unlock capsule')
+        throw new Error(await getApiErrorMessage(response, 'Failed to unlock capsule'))
       }
 
       const payload = await response.json()
@@ -146,7 +150,7 @@ const Capsule: React.FC = () => {
       }
     } catch (error) {
       console.error('Unlock capsule error:', error)
-      setActionError('Failed to unlock capsule')
+      setActionError(error instanceof Error ? error.message : 'Failed to unlock capsule')
     }
   }
 
@@ -395,6 +399,22 @@ const Capsule: React.FC = () => {
                         className="w-full px-4 py-3 bg-deep-space/50 border border-aurora-purple/30 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-aurora-purple focus:ring-1 focus:ring-aurora-purple resize-none"
                         placeholder="Capture this moment in words..."
                       />
+                    </div>
+
+                    <div className="rounded-lg border border-solar-gold/30 bg-solar-gold/5 p-3">
+                      <label className="flex items-center justify-between gap-3">
+                        <span className="text-sm text-solar-gold">Lock capsule (needs both partners to unlock)</span>
+                        <input
+                          type="checkbox"
+                          checked={newCapsule.isLocked}
+                          onChange={(e) => setNewCapsule({ ...newCapsule, isLocked: e.target.checked })}
+                          disabled={!user?.partnerId}
+                          className="h-4 w-4 accent-solar-gold"
+                        />
+                      </label>
+                      {!user?.partnerId && (
+                        <p className="text-xs text-solar-gold/70 mt-2">Connect partner first to create locked capsule.</p>
+                      )}
                     </div>
 
                     <button

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Package, Heart, Image, Mic, FileText, X } from 'lucide-react'
 import { withCsrfHeader } from '../utils/csrf'
@@ -24,6 +24,70 @@ interface NewCapsuleState {
   isLocked: boolean
 }
 
+interface CapsuleGraphNode {
+  id: string
+  x: number
+  y: number
+  size: number
+  capsule: CapsuleData
+}
+
+interface CapsuleGraphLink {
+  from: string
+  to: string
+  intensity: number
+}
+
+const LINK_STOP_WORDS = new Set([
+  'this', 'that', 'with', 'from', 'have', 'will', 'your', 'about', 'what', 'when', 'where', 'were', 'their', 'there', 'into', 'only', 'then', 'them', 'more', 'just', 'over', 'also', 'http', 'https'
+])
+
+const tokenizeForLinking = (value: string) => {
+  return value
+    .toLowerCase()
+    .replace(/https?:\/\/\S+/g, '')
+    .split(/[^a-z0-9]+/)
+    .filter((token) => token.length >= 4 && !LINK_STOP_WORDS.has(token))
+}
+
+const buildCapsuleLinks = (items: CapsuleData[]): CapsuleGraphLink[] => {
+  const links: CapsuleGraphLink[] = []
+
+  const tokenMap = new Map<string, Set<string>>()
+  for (const capsule of items) {
+    tokenMap.set(capsule.id, new Set(tokenizeForLinking(`${capsule.title} ${capsule.content}`)))
+  }
+
+  for (let i = 0; i < items.length; i += 1) {
+    for (let j = i + 1; j < items.length; j += 1) {
+      const first = items[i]
+      const second = items[j]
+      const firstTokens = tokenMap.get(first.id) || new Set<string>()
+      const secondTokens = tokenMap.get(second.id) || new Set<string>()
+      let shared = 0
+
+      firstTokens.forEach((token) => {
+        if (secondTokens.has(token)) {
+          shared += 1
+        }
+      })
+
+      const sameTypeBoost = first.type === second.type ? 1 : 0
+      const intensity = shared + sameTypeBoost
+
+      if (intensity >= 2) {
+        links.push({
+          from: first.id,
+          to: second.id,
+          intensity
+        })
+      }
+    }
+  }
+
+  return links.slice(0, 36)
+}
+
 const Capsule: React.FC = () => {
   const { user } = useAuth()
   const [isOpen, setIsOpen] = useState(false)
@@ -32,12 +96,44 @@ const Capsule: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false)
   const [isCreating, setIsCreating] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
+  const [viewMode, setViewMode] = useState<'constellation' | 'list'>('constellation')
+  const [selectedCapsuleId, setSelectedCapsuleId] = useState<string | null>(null)
   const [newCapsule, setNewCapsule] = useState<NewCapsuleState>({
     title: '',
     content: '',
     type: 'text',
     isLocked: false
   })
+
+  const graphNodes = useMemo<CapsuleGraphNode[]>(() => {
+    const graphCapsules = capsules.slice(0, 14)
+
+    return graphCapsules.map((capsule, index) => {
+      const angle = (Math.PI * 2 * index) / Math.max(graphCapsules.length, 1)
+      const radius = 190 + (index % 3) * 36
+
+      return {
+        id: capsule.id,
+        capsule,
+        x: 440 + Math.cos(angle) * radius,
+        y: 250 + Math.sin(angle) * radius,
+        size: capsule.isLocked ? 14 : 11
+      }
+    })
+  }, [capsules])
+
+  const graphLinks = useMemo(() => {
+    const graphCapsules = graphNodes.map((node) => node.capsule)
+    return buildCapsuleLinks(graphCapsules)
+  }, [graphNodes])
+
+  const selectedCapsule = useMemo(() => {
+    if (!selectedCapsuleId) {
+      return null
+    }
+
+    return capsules.find((capsule) => capsule.id === selectedCapsuleId) || null
+  }, [capsules, selectedCapsuleId])
 
   const normalizeCapsule = (capsule: any): CapsuleData => {
     return {
@@ -82,6 +178,17 @@ const Capsule: React.FC = () => {
     }
   }, [isOpen])
 
+  useEffect(() => {
+    if (capsules.length === 0) {
+      setSelectedCapsuleId(null)
+      return
+    }
+
+    if (!selectedCapsuleId || !capsules.some((capsule) => capsule.id === selectedCapsuleId)) {
+      setSelectedCapsuleId(capsules[0].id)
+    }
+  }, [capsules, selectedCapsuleId])
+
   const handleCreateCapsule = async () => {
     if (!newCapsule.title || !newCapsule.content) {
       return
@@ -113,6 +220,7 @@ const Capsule: React.FC = () => {
 
       const createdCapsule = normalizeCapsule(await response.json())
       setCapsules((prev) => [createdCapsule, ...prev])
+      setSelectedCapsuleId(createdCapsule.id)
       setNewCapsule({ title: '', content: '', type: 'text', isLocked: false })
       setActiveTab('view')
     } catch (error) {
@@ -224,6 +332,57 @@ const Capsule: React.FC = () => {
     }
 
     return 'Capture this moment in words...'
+  }
+
+  const renderCapsulePanel = (capsule: CapsuleData) => {
+    return (
+      <div
+        key={capsule.id}
+        className={`p-4 rounded-lg border ${
+          capsule.isLocked
+            ? 'border-solar-gold/30 bg-solar-gold/5'
+            : 'border-aurora-purple/30 bg-aurora-purple/5'
+        }`}
+      >
+        <div className="flex items-start justify-between mb-3">
+          <div>
+            <h3 className="font-orbitron text-lg text-starlight-cyan">
+              {capsule.title}
+            </h3>
+            <p className="text-sm text-aurora-purple/60">
+              {new Date(capsule.createdAt).toLocaleDateString()}
+            </p>
+            {capsule.isLocked && capsule.unlockVotesRequired && (
+              <p className="text-xs text-solar-gold/80 mt-1">
+                Unlock votes: {capsule.unlockVotesCount || 0}/{capsule.unlockVotesRequired}
+              </p>
+            )}
+          </div>
+          <div className="flex items-center space-x-2">
+            {capsule.isLocked && (
+              <div className="flex items-center space-x-1 text-solar-gold">
+                <Heart className="w-4 h-4" />
+                <span className="text-xs">Locked</span>
+              </div>
+            )}
+            {capsule.isLocked && !capsule.viewerHasVoted && (
+              <button
+                onClick={() => handleUnlockCapsule(capsule.id)}
+                className="px-3 py-1 rounded-full border border-solar-gold/60 text-solar-gold text-xs hover:bg-solar-gold/10 transition-colors"
+              >
+                Unlock
+              </button>
+            )}
+            {capsule.isLocked && capsule.viewerHasVoted && (
+              <span className="px-3 py-1 rounded-full border border-solar-gold/30 text-solar-gold/80 text-xs">
+                Waiting Partner
+              </span>
+            )}
+          </div>
+        </div>
+        {renderCapsuleContent(capsule)}
+      </div>
+    )
   }
 
   return (
@@ -355,6 +514,34 @@ const Capsule: React.FC = () => {
                       </div>
                     )}
 
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="text-xs text-aurora-purple/75">
+                        Links are inferred from shared words and capsule type. Not persisted in backend yet.
+                      </div>
+                      <div className="inline-flex rounded-full border border-aurora-purple/30 p-1 bg-deep-space/50">
+                        <button
+                          onClick={() => setViewMode('constellation')}
+                          className={`px-3 py-1 text-xs rounded-full transition-colors ${
+                            viewMode === 'constellation'
+                              ? 'bg-aurora-purple/50 text-white'
+                              : 'text-aurora-purple hover:text-starlight-cyan'
+                          }`}
+                        >
+                          Constellation
+                        </button>
+                        <button
+                          onClick={() => setViewMode('list')}
+                          className={`px-3 py-1 text-xs rounded-full transition-colors ${
+                            viewMode === 'list'
+                              ? 'bg-aurora-purple/50 text-white'
+                              : 'text-aurora-purple hover:text-starlight-cyan'
+                          }`}
+                        >
+                          List
+                        </button>
+                      </div>
+                    </div>
+
                     {isLoading && (
                       <div className="text-sm text-aurora-purple/80">Loading capsules...</div>
                     )}
@@ -363,54 +550,86 @@ const Capsule: React.FC = () => {
                       <div className="text-sm text-aurora-purple/80">No capsules yet. Create first memory capsule.</div>
                     )}
 
-                    {capsules.map((capsule) => (
-                      <div
-                        key={capsule.id}
-                        className={`p-4 rounded-lg border ${
-                          capsule.isLocked
-                            ? 'border-solar-gold/30 bg-solar-gold/5'
-                            : 'border-aurora-purple/30 bg-aurora-purple/5'
-                        }`}
-                      >
-                        <div className="flex items-start justify-between mb-3">
-                          <div>
-                            <h3 className="font-orbitron text-lg text-starlight-cyan">
-                              {capsule.title}
-                            </h3>
-                            <p className="text-sm text-aurora-purple/60">
-                              {new Date(capsule.createdAt).toLocaleDateString()}
-                            </p>
-                            {capsule.isLocked && capsule.unlockVotesRequired && (
-                              <p className="text-xs text-solar-gold/80 mt-1">
-                                Unlock votes: {capsule.unlockVotesCount || 0}/{capsule.unlockVotesRequired}
-                              </p>
-                            )}
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            {capsule.isLocked && (
-                              <div className="flex items-center space-x-1 text-solar-gold">
-                                <Heart className="w-4 h-4" />
-                                <span className="text-xs">Locked</span>
-                              </div>
-                            )}
-                            {capsule.isLocked && !capsule.viewerHasVoted && (
-                              <button
-                                onClick={() => handleUnlockCapsule(capsule.id)}
-                                className="px-3 py-1 rounded-full border border-solar-gold/60 text-solar-gold text-xs hover:bg-solar-gold/10 transition-colors"
-                              >
-                                Unlock
-                              </button>
-                            )}
-                            {capsule.isLocked && capsule.viewerHasVoted && (
-                              <span className="px-3 py-1 rounded-full border border-solar-gold/30 text-solar-gold/80 text-xs">
-                                Waiting Partner
-                              </span>
-                            )}
-                          </div>
+                    {!isLoading && capsules.length > 0 && viewMode === 'list' && capsules.map((capsule) => renderCapsulePanel(capsule))}
+
+                    {!isLoading && capsules.length > 0 && viewMode === 'constellation' && (
+                      <div className="grid grid-cols-1 xl:grid-cols-[1.3fr_0.9fr] gap-4">
+                        <div className="rounded-xl border border-aurora-purple/25 bg-deep-space/40 p-2 md:p-3 overflow-hidden">
+                          <svg viewBox="0 0 880 500" className="w-full h-[360px] md:h-[430px]">
+                            <defs>
+                              <linearGradient id="capsule-link-glow" x1="0%" y1="0%" x2="100%" y2="0%">
+                                <stop offset="0%" stopColor="rgba(136,93,255,0.25)" />
+                                <stop offset="100%" stopColor="rgba(255,79,145,0.32)" />
+                              </linearGradient>
+                            </defs>
+
+                            {graphLinks.map((link) => {
+                              const fromNode = graphNodes.find((node) => node.id === link.from)
+                              const toNode = graphNodes.find((node) => node.id === link.to)
+
+                              if (!fromNode || !toNode) {
+                                return null
+                              }
+
+                              return (
+                                <line
+                                  key={`${link.from}-${link.to}`}
+                                  x1={fromNode.x}
+                                  y1={fromNode.y}
+                                  x2={toNode.x}
+                                  y2={toNode.y}
+                                  stroke="url(#capsule-link-glow)"
+                                  strokeWidth={Math.min(3.5, 1 + link.intensity * 0.45)}
+                                  strokeLinecap="round"
+                                />
+                              )
+                            })}
+
+                            {graphNodes.map((node) => {
+                              const isSelected = selectedCapsuleId === node.id
+
+                              return (
+                                <g key={node.id} onClick={() => setSelectedCapsuleId(node.id)} className="cursor-pointer">
+                                  <circle
+                                    cx={node.x}
+                                    cy={node.y}
+                                    r={node.size + (isSelected ? 10 : 6)}
+                                    fill={isSelected ? 'rgba(255, 196, 255, 0.24)' : 'rgba(138, 93, 255, 0.2)'}
+                                  />
+                                  <circle
+                                    cx={node.x}
+                                    cy={node.y}
+                                    r={node.size}
+                                    fill={node.capsule.isLocked ? '#F9A826' : '#8A5DFF'}
+                                    opacity={isSelected ? 1 : 0.88}
+                                  />
+                                  <text
+                                    x={node.x}
+                                    y={node.y + node.size + 18}
+                                    textAnchor="middle"
+                                    fill="rgba(230, 214, 255, 0.95)"
+                                    fontSize="12"
+                                    fontFamily="Sora"
+                                  >
+                                    {node.capsule.title.slice(0, 16)}
+                                  </text>
+                                </g>
+                              )
+                            })}
+                          </svg>
                         </div>
-                        {renderCapsuleContent(capsule)}
+
+                        <div className="space-y-3">
+                          {selectedCapsule ? (
+                            renderCapsulePanel(selectedCapsule)
+                          ) : (
+                            <div className="rounded-lg border border-aurora-purple/30 bg-aurora-purple/10 p-4 text-sm text-aurora-purple/80">
+                              Pick star node to inspect capsule details.
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    ))}
+                    )}
                   </div>
                 )}
 

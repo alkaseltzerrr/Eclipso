@@ -7,6 +7,12 @@ import prisma from '../lib/prisma'
 
 const router = express.Router()
 
+const messageCreateSchema = Joi.object({
+  receiverId: Joi.string().trim().required(),
+  content: Joi.string().trim().min(1).max(2000).required(),
+  type: Joi.string().valid('text', 'capsule').default('text')
+})
+
 const capsuleCreateSchema = Joi.object({
   title: Joi.string().trim().min(1).max(120).required(),
   content: Joi.string().trim().min(1).max(4000).required(),
@@ -109,18 +115,21 @@ router.get('/messages', authenticate, async (req: any, res: any) => {
 // Create a new message
 router.post('/messages', authenticate, requireCsrf, writeRateLimit, async (req: any, res: any) => {
   try {
-    const { content, receiverId, type = 'text' } = req.body
+    const { value, error } = messageCreateSchema.validate(req.body, {
+      abortEarly: true,
+      stripUnknown: true
+    })
+
+    if (error) {
+      return res.status(400).json({ message: getValidationMessage(error) })
+    }
+
+    const content = value.content as string
+    const receiverId = value.receiverId as string
+    const type = value.type as 'text' | 'capsule'
     const senderId = req.user.id
 
-    if (!receiverId) {
-      return res.status(400).json({ message: 'Receiver ID required' })
-    }
-
-    const normalizedContent = String(content || '').trim()
-
-    if (!normalizedContent) {
-      return res.status(400).json({ message: 'Message content required' })
-    }
+    const normalizedContent = content.trim()
 
     const activePartnership = await findActivePartnership(senderId, receiverId)
 

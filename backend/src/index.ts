@@ -25,6 +25,8 @@ const io = new Server(server, {
 })
 
 const PORT = process.env.PORT || 5000
+const SOCKET_MESSAGE_MAX_LENGTH = 2000
+const ALLOWED_MESSAGE_TYPES = new Set(['text', 'capsule'])
 
 const onlineUsers = new Map<string, { connections: number; lastSeenAt: string | null }>()
 
@@ -260,9 +262,20 @@ io.on('connection', (socket) => {
       }
 
       const normalizedContent = String(content || '').trim()
+      const normalizedType = String(type || 'text')
 
       if (!normalizedContent) {
         socket.emit('errorMessage', { message: 'Message content required' })
+        return
+      }
+
+      if (normalizedContent.length > SOCKET_MESSAGE_MAX_LENGTH) {
+        socket.emit('errorMessage', { message: 'Message too long (max 2000 chars)' })
+        return
+      }
+
+      if (!ALLOWED_MESSAGE_TYPES.has(normalizedType)) {
+        socket.emit('errorMessage', { message: 'Invalid message type' })
         return
       }
 
@@ -284,7 +297,7 @@ io.on('connection', (socket) => {
       const message = await prisma.message.create({
         data: {
           content: normalizedContent,
-          type,
+          type: normalizedType,
           senderId: userId,
           receiverId: partnerId,
           partnershipId: activePartnership.id
@@ -302,7 +315,7 @@ io.on('connection', (socket) => {
         senderId: userId,
         receiverId: partnerId,
         content: message.content,
-        type,
+        type: normalizedType,
         timestamp: message.createdAt.toISOString(),
         readAt: null
       }

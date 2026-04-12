@@ -111,18 +111,24 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
 
       await ensureCsrfToken()
-      const csrfToken = getCsrfTokenFromCookie()
 
       socketInstance = io(socketUrl, {
         withCredentials: true,
-        auth: csrfToken ? { csrfToken } : {}
+        auth: (callback) => {
+          callback({
+            csrfToken: getCsrfTokenFromCookie()
+          })
+        }
       })
 
       socketInstance.on('connect', () => {
         setIsConnected(true)
 
         if (user.partnerId) {
-          socketInstance?.emit('joinPartnerRoom', user.partnerId)
+          socketInstance?.emit('joinPartnerRoom', {
+            partnerId: user.partnerId,
+            csrfToken: getCsrfTokenFromCookie()
+          })
         }
 
         console.log('Connected to server')
@@ -145,7 +151,13 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         })
       })
 
-      socketInstance.on('errorMessage', (payload: { message?: string }) => {
+      socketInstance.on('errorMessage', (payload: { code?: string; message?: string }) => {
+        if (payload?.code === 'csrf_mismatch') {
+          socketInstance?.disconnect()
+          socketInstance?.connect()
+          return
+        }
+
         console.error('Socket error:', payload?.message || 'Unknown socket error')
       })
 
@@ -201,6 +213,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         type,
         senderId: user.id,
         partnerId: user.partnerId,
+        csrfToken: getCsrfTokenFromCookie()
       }
       socket.emit('message', message)
     }

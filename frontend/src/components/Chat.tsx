@@ -6,7 +6,15 @@ import { motion, AnimatePresence } from 'framer-motion'
 
 const Chat: React.FC = () => {
   const [message, setMessage] = useState('')
-  const { messages, sendMessage, isConnected, loadOlderMessages, hasMoreMessages, isLoadingMessages } = useSocket()
+  const {
+    messages,
+    sendMessage,
+    isConnected,
+    loadOlderMessages,
+    hasMoreMessages,
+    isLoadingMessages,
+    partnerPresence
+  } = useSocket()
   const { user } = useAuth()
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const canSend = isConnected && Boolean(user?.partnerId)
@@ -34,6 +42,19 @@ const Chat: React.FC = () => {
     })
   }
 
+  const formatLastSeen = (timestamp: string | null) => {
+    if (!timestamp) {
+      return 'Offline'
+    }
+
+    return `Last seen ${new Date(timestamp).toLocaleString([], {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    })}`
+  }
+
   return (
     <div className="h-full flex flex-col bg-eclipse-black/60 backdrop-blur-sm rounded-xl border border-aurora-purple/20">
       {/* Chat Header */}
@@ -53,6 +74,13 @@ const Chat: React.FC = () => {
             </span>
           </div>
         </div>
+        {user?.partnerId && (
+          <div className="mt-2 text-xs text-aurora-purple/80">
+            {partnerPresence?.isOnline
+              ? 'Partner online'
+              : formatLastSeen(partnerPresence?.lastSeenAt || null)}
+          </div>
+        )}
       </div>
 
       {/* Messages */}
@@ -100,6 +128,11 @@ const Chat: React.FC = () => {
                 <p className="text-sm font-inter">{msg.content}</p>
                 <div className="text-xs opacity-70 mt-1">
                   {formatTime(msg.timestamp)}
+                  {msg.senderId === user?.id && (
+                    <span className="ml-2">
+                      {msg.readAt ? `Seen ${formatTime(msg.readAt)}` : 'Sent'}
+                    </span>
+                  )}
                 </div>
               </div>
             </motion.div>

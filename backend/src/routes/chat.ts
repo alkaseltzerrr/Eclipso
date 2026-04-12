@@ -128,6 +128,46 @@ router.post('/messages', authenticate, requireCsrf, async (req: any, res: any) =
   }
 })
 
+// Mark messages as read
+router.put('/messages/read', authenticate, requireCsrf, async (req: any, res: any) => {
+  try {
+    const userId = req.user.id
+    const { partnerId } = req.body
+
+    if (!partnerId || typeof partnerId !== 'string') {
+      return res.status(400).json({ message: 'Partner ID required' })
+    }
+
+    const activePartnership = await findActivePartnership(userId, partnerId)
+
+    if (!activePartnership) {
+      return res.status(403).json({ message: 'No active partnership with this user' })
+    }
+
+    const readAt = new Date()
+
+    const updated = await prisma.message.updateMany({
+      where: {
+        senderId: partnerId,
+        receiverId: userId,
+        partnershipId: activePartnership.id,
+        readAt: null
+      },
+      data: {
+        readAt
+      }
+    })
+
+    res.json({
+      updatedCount: updated.count,
+      readAt: readAt.toISOString()
+    })
+  } catch (error) {
+    console.error('Mark messages read error:', error)
+    res.status(500).json({ message: 'Server error' })
+  }
+})
+
 // Get capsules
 router.get('/capsules', authenticate, async (req: any, res: any) => {
   try {

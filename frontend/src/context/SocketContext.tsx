@@ -23,11 +23,13 @@ interface SocketContextType {
   messages: Message[]
   sendMessage: (content: string, type?: 'text' | 'capsule') => void
   markMessagesRead: () => void
+  setTyping: (isTyping: boolean) => void
   loadOlderMessages: () => Promise<void>
   hasMoreMessages: boolean
   isLoadingMessages: boolean
   isConnected: boolean
   partnerPresence: PartnerPresence | null
+  partnerTyping: boolean
 }
 
 const SocketContext = createContext<SocketContextType | null>(null)
@@ -48,6 +50,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [isLoadingMessages, setIsLoadingMessages] = useState(false)
   const [isConnected, setIsConnected] = useState(false)
   const [partnerPresence, setPartnerPresence] = useState<PartnerPresence | null>(null)
+  const [partnerTyping, setPartnerTyping] = useState(false)
   const { user } = useAuth()
   const socketUrl = import.meta.env.VITE_SOCKET_URL?.trim() || window.location.origin
 
@@ -118,6 +121,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setNextCursor(null)
         setHasMoreMessages(false)
         setPartnerPresence(null)
+        setPartnerTyping(false)
         return
       }
 
@@ -190,6 +194,14 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         })
       })
 
+      socketInstance.on('partnerTyping', (payload: { userId?: string; isTyping?: boolean }) => {
+        if (!user.partnerId || payload.userId !== user.partnerId) {
+          return
+        }
+
+        setPartnerTyping(Boolean(payload.isTyping))
+      })
+
       socketInstance.on('errorMessage', (payload: { code?: string; message?: string }) => {
         if (payload?.code === 'csrf_mismatch') {
           socketInstance?.disconnect()
@@ -217,6 +229,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setNextCursor(null)
     setHasMoreMessages(false)
     setPartnerPresence(null)
+    setPartnerTyping(false)
   }, [user, socketUrl])
 
   useEffect(() => {
@@ -225,6 +238,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setNextCursor(null)
       setHasMoreMessages(false)
       setPartnerPresence(null)
+      setPartnerTyping(false)
       return
     }
 
@@ -271,6 +285,17 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     })
   }
 
+  const setTyping = (isTyping: boolean) => {
+    if (!socket || !user?.partnerId || !isConnected) {
+      return
+    }
+
+    socket.emit(isTyping ? 'typing' : 'stopTyping', {
+      partnerId: user.partnerId,
+      csrfToken: getCsrfTokenFromCookie()
+    })
+  }
+
   useEffect(() => {
     if (!user?.partnerId || !socket || !isConnected) {
       return
@@ -291,11 +316,13 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       messages,
       sendMessage,
       markMessagesRead,
+      setTyping,
       loadOlderMessages,
       hasMoreMessages,
       isLoadingMessages,
       isConnected,
       partnerPresence,
+      partnerTyping,
     }}>
       {children}
     </SocketContext.Provider>

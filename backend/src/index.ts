@@ -262,6 +262,12 @@ io.on('connection', (socket) => {
           senderId: userId,
           receiverId: partnerId,
           partnershipId: activePartnership.id
+        },
+        select: {
+          id: true,
+          content: true,
+          createdAt: true,
+          readAt: true
         }
       })
 
@@ -272,7 +278,7 @@ io.on('connection', (socket) => {
         content: message.content,
         type,
         timestamp: message.createdAt.toISOString(),
-        readAt: message.readAt ? message.readAt.toISOString() : null
+        readAt: null
       }
 
       // Emit only to shared partner room (sender + partner)
@@ -334,6 +340,74 @@ io.on('connection', (socket) => {
       })
     } catch (error) {
       console.error('Error marking messages as read:', error)
+    }
+  })
+
+  socket.on('typing', async (data) => {
+    try {
+      if (!hasValidSocketCsrf(data)) {
+        socket.emit('errorMessage', {
+          code: 'csrf_mismatch',
+          message: 'Invalid CSRF token for socket event'
+        })
+        return
+      }
+
+      const partnerId = data?.partnerId
+
+      if (!partnerId || typeof partnerId !== 'string') {
+        return
+      }
+
+      const activePartnership = await hasActivePartnership(partnerId)
+
+      if (!activePartnership) {
+        socket.emit('errorMessage', { message: 'No active partnership with this user' })
+        return
+      }
+
+      const roomName = `room:${buildRoomId(partnerId)}`
+
+      io.to(roomName).emit('partnerTyping', {
+        userId,
+        isTyping: true
+      })
+    } catch (error) {
+      console.error('Error handling typing start:', error)
+    }
+  })
+
+  socket.on('stopTyping', async (data) => {
+    try {
+      if (!hasValidSocketCsrf(data)) {
+        socket.emit('errorMessage', {
+          code: 'csrf_mismatch',
+          message: 'Invalid CSRF token for socket event'
+        })
+        return
+      }
+
+      const partnerId = data?.partnerId
+
+      if (!partnerId || typeof partnerId !== 'string') {
+        return
+      }
+
+      const activePartnership = await hasActivePartnership(partnerId)
+
+      if (!activePartnership) {
+        socket.emit('errorMessage', { message: 'No active partnership with this user' })
+        return
+      }
+
+      const roomName = `room:${buildRoomId(partnerId)}`
+
+      io.to(roomName).emit('partnerTyping', {
+        userId,
+        isTyping: false
+      })
+    } catch (error) {
+      console.error('Error handling typing stop:', error)
     }
   })
 

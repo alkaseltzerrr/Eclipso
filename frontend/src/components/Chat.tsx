@@ -13,10 +13,14 @@ const Chat: React.FC = () => {
     loadOlderMessages,
     hasMoreMessages,
     isLoadingMessages,
-    partnerPresence
+    partnerPresence,
+    partnerTyping,
+    setTyping
   } = useSocket()
   const { user } = useAuth()
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const typingTimeoutRef = useRef<number | null>(null)
+  const isTypingRef = useRef(false)
   const canSend = isConnected && Boolean(user?.partnerId)
 
   const scrollToBottom = () => {
@@ -31,9 +35,65 @@ const Chat: React.FC = () => {
     e.preventDefault()
     if (message.trim() && canSend) {
       sendMessage(message)
+      if (isTypingRef.current) {
+        setTyping(false)
+        isTypingRef.current = false
+      }
+
+      if (typingTimeoutRef.current) {
+        window.clearTimeout(typingTimeoutRef.current)
+        typingTimeoutRef.current = null
+      }
+
       setMessage('')
     }
   }
+
+  const handleInputChange = (value: string) => {
+    setMessage(value)
+
+    if (!canSend) {
+      return
+    }
+
+    const hasText = value.trim().length > 0
+
+    if (hasText && !isTypingRef.current) {
+      setTyping(true)
+      isTypingRef.current = true
+    }
+
+    if (!hasText && isTypingRef.current) {
+      setTyping(false)
+      isTypingRef.current = false
+    }
+
+    if (typingTimeoutRef.current) {
+      window.clearTimeout(typingTimeoutRef.current)
+      typingTimeoutRef.current = null
+    }
+
+    if (hasText) {
+      typingTimeoutRef.current = window.setTimeout(() => {
+        if (isTypingRef.current) {
+          setTyping(false)
+          isTypingRef.current = false
+        }
+      }, 1200)
+    }
+  }
+
+  useEffect(() => {
+    return () => {
+      if (typingTimeoutRef.current) {
+        window.clearTimeout(typingTimeoutRef.current)
+      }
+
+      if (isTypingRef.current) {
+        setTyping(false)
+      }
+    }
+  }, [setTyping])
 
   const formatTime = (timestamp: string) => {
     return new Date(timestamp).toLocaleTimeString([], { 
@@ -76,7 +136,9 @@ const Chat: React.FC = () => {
         </div>
         {user?.partnerId && (
           <div className="mt-2 text-xs text-aurora-purple/80">
-            {partnerPresence?.isOnline
+            {partnerTyping
+              ? 'Partner typing...'
+              : partnerPresence?.isOnline
               ? 'Partner online'
               : formatLastSeen(partnerPresence?.lastSeenAt || null)}
           </div>
@@ -147,7 +209,13 @@ const Chat: React.FC = () => {
           <input
             type="text"
             value={message}
-            onChange={(e) => setMessage(e.target.value)}
+            onChange={(e) => handleInputChange(e.target.value)}
+            onBlur={() => {
+              if (isTypingRef.current) {
+                setTyping(false)
+                isTypingRef.current = false
+              }
+            }}
             placeholder={user?.partnerId ? 'Send a cosmic message...' : 'Link with partner to start chat'}
             className="flex-1 px-4 py-3 bg-deep-space/50 border border-aurora-purple/30 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-aurora-purple focus:ring-1 focus:ring-aurora-purple"
             disabled={!canSend}

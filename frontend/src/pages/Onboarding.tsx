@@ -1,13 +1,13 @@
 import React, { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { motion } from 'framer-motion'
-import { Star, Heart, Music, Code, Coffee, Camera, Book, Plane } from 'lucide-react'
+import { Music, Code, Coffee, Camera, Book, Plane } from 'lucide-react'
 
 const Onboarding: React.FC = () => {
   const [step, setStep] = useState(1)
   const [interests, setInterests] = useState<string[]>([])
   const [avatar, setAvatar] = useState('#8A5DFF')
-  const { user, updateProfile } = useAuth()
+  const { updateProfile } = useAuth()
 
   const interestOptions = [
     { name: 'Music', icon: Music, category: 'entertainment' },

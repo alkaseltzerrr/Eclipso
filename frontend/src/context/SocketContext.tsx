@@ -39,6 +39,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [isLoadingMessages, setIsLoadingMessages] = useState(false)
   const [isConnected, setIsConnected] = useState(false)
   const { user } = useAuth()
+  const socketUrl = import.meta.env.VITE_SOCKET_URL?.trim() || window.location.origin
 
   const normalizeMessage = (incoming: any): Message => {
     return {
@@ -106,7 +107,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   useEffect(() => {
     if (user) {
       const token = localStorage.getItem('token')
-      const socketInstance = io('http://localhost:5000', {
+      const socketInstance = io(socketUrl, {
         auth: {
           token,
         },
@@ -155,7 +156,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setMessages([])
     setNextCursor(null)
     setHasMoreMessages(false)
-  }, [user])
+  }, [user, socketUrl])
 
   useEffect(() => {
     if (!user?.partnerId) {

@@ -118,11 +118,10 @@ eclipso/
     │   │   └── chat.ts           # Messages + capsules  
     │   ├── middleware/
     │   │   └── authMiddleware.ts # JWT verification
-    │   ├── prisma/
-    │   │   └── schema.prisma     # Database schema
     │   └── index.ts       # Express + Socket.io server
     ├── prisma/
-    │   └── seed.ts        # Sample data
+   │   ├── schema.prisma  # Database schema (single source of truth)
+   │   └── seed.ts        # Sample data
     └── package.json
 ```
 
@@ -165,6 +164,9 @@ eclipso/
    ```bash
    cd ../frontend
    npm install
+
+   # Optional socket endpoint override
+   cp .env.example .env
    
    # Start development server  
    npm run dev

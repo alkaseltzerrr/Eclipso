@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Package, Heart, Image, Mic, FileText, X } from 'lucide-react'
+import { withCsrfHeader } from '../utils/csrf'
 
 interface CapsuleData {
   id: string
@@ -79,12 +80,14 @@ const Capsule: React.FC = () => {
     setActionError(null)
 
     try {
+      const csrfHeaders = await withCsrfHeader({
+        'Content-Type': 'application/json'
+      })
+
       const response = await fetch('/api/chat/capsules', {
         method: 'POST',
         credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: csrfHeaders,
         body: JSON.stringify({
           title: newCapsule.title,
           content: newCapsule.content,
@@ -113,9 +116,12 @@ const Capsule: React.FC = () => {
     setActionError(null)
 
     try {
+      const csrfHeaders = await withCsrfHeader()
+
       const response = await fetch(`/api/chat/capsules/${capsuleId}/unlock`, {
         method: 'PUT',
-        credentials: 'include'
+        credentials: 'include',
+        headers: csrfHeaders
       })
 
       if (!response.ok) {

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
 import io, { Socket } from 'socket.io-client'
 import { useAuth } from './AuthContext'
+import { ensureCsrfToken, getCsrfTokenFromCookie } from '../utils/csrf'
 
 interface Message {
   id: string
@@ -97,16 +98,31 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }
 
   useEffect(() => {
-    if (user) {
-      const socketInstance = io(socketUrl, {
-        withCredentials: true
+    let socketInstance: Socket | null = null
+
+    const connectSocket = async () => {
+      if (!user) {
+        setSocket(null)
+        setIsConnected(false)
+        setMessages([])
+        setNextCursor(null)
+        setHasMoreMessages(false)
+        return
+      }
+
+      await ensureCsrfToken()
+      const csrfToken = getCsrfTokenFromCookie()
+
+      socketInstance = io(socketUrl, {
+        withCredentials: true,
+        auth: csrfToken ? { csrfToken } : {}
       })
 
       socketInstance.on('connect', () => {
         setIsConnected(true)
 
         if (user.partnerId) {
-          socketInstance.emit('joinPartnerRoom', user.partnerId)
+          socketInstance?.emit('joinPartnerRoom', user.partnerId)
         }
 
         console.log('Connected to server')
@@ -134,9 +150,13 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       })
 
       setSocket(socketInstance)
+    }
+
+    if (user) {
+      connectSocket()
 
       return () => {
-        socketInstance.close()
+        socketInstance?.close()
       }
     }
 

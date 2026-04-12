@@ -3,6 +3,7 @@ import Cosmos from '../components/Cosmos'
 import Chat from '../components/Chat'
 import OrbitMeter from '../components/OrbitMeter'
 import Capsule from '../components/Capsule'
+import PartnerManager from '../components/PartnerManager'
 import { useAuth } from '../context/AuthContext'
 import { LogOut, Settings } from 'lucide-react'
 
@@ -49,6 +50,7 @@ const Dashboard: React.FC = () => {
 
           {/* Orbit Meter */}
           <div className="flex flex-col space-y-6">
+            <PartnerManager />
             <OrbitMeter />
             <Capsule />
           </div>

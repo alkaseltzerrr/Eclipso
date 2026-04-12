@@ -18,6 +18,10 @@ const partnershipSchema = Joi.object({
   partnerEmail: Joi.string().trim().lowercase().email().max(254).required()
 })
 
+const partnershipIdSchema = Joi.object({
+  id: Joi.string().trim().required()
+})
+
 const getValidationMessage = (error: Joi.ValidationError) => {
   return error.details[0]?.message || 'Invalid request payload'
 }
@@ -68,6 +72,30 @@ const buildFallbackConstellations = (stars: any[]) => {
       connections
     }
   ]
+}
+
+const mapPartnerForUser = (partnership: any, userId: string) => {
+  if (!partnership) {
+    return null
+  }
+
+  const isOwner = partnership.userId === userId
+  const partner = isOwner ? partnership.partner : partnership.user
+
+  return {
+    id: partnership.id,
+    status: partnership.status,
+    createdAt: partnership.createdAt,
+    updatedAt: partnership.updatedAt,
+    partner: partner
+      ? {
+          id: partner.id,
+          username: partner.username,
+          email: partner.email,
+          avatar: partner.avatar || null
+        }
+      : null
+  }
 }
 
 // Update user profile
@@ -329,7 +357,107 @@ router.get('/cosmos', authenticate, async (req: any, res: any) => {
   }
 })
 
-// Create or update partnership
+// Get partnership state (active + pending)
+router.get('/partnerships', authenticate, async (req: any, res: any) => {
+  try {
+    const userId = req.user.id
+
+    const [activePartnership, incomingInvites, outgoingInvites] = await Promise.all([
+      prisma.partnership.findFirst({
+        where: {
+          status: 'active',
+          OR: [
+            { userId },
+            { partnerId: userId }
+          ]
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              username: true,
+              email: true,
+              avatar: true
+            }
+          },
+          partner: {
+            select: {
+              id: true,
+              username: true,
+              email: true,
+              avatar: true
+            }
+          }
+        }
+      }),
+      prisma.partnership.findMany({
+        where: {
+          status: 'pending',
+          partnerId: userId
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              username: true,
+              email: true,
+              avatar: true
+            }
+          },
+          partner: {
+            select: {
+              id: true,
+              username: true,
+              email: true,
+              avatar: true
+            }
+          }
+        },
+        orderBy: {
+          createdAt: 'desc'
+        }
+      }),
+      prisma.partnership.findMany({
+        where: {
+          status: 'pending',
+          userId
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              username: true,
+              email: true,
+              avatar: true
+            }
+          },
+          partner: {
+            select: {
+              id: true,
+              username: true,
+              email: true,
+              avatar: true
+            }
+          }
+        },
+        orderBy: {
+          createdAt: 'desc'
+        }
+      })
+    ])
+
+    res.json({
+      activePartnership: mapPartnerForUser(activePartnership, userId),
+      incomingInvites: incomingInvites.map((partnership) => mapPartnerForUser(partnership, userId)),
+      outgoingInvites: outgoingInvites.map((partnership) => mapPartnerForUser(partnership, userId))
+    })
+  } catch (error) {
+    console.error('Get partnerships error:', error)
+    res.status(500).json({ message: 'Server error' })
+  }
+})
+
+// Send partnership invite
 router.post('/partnership', authenticate, requireCsrf, async (req: any, res: any) => {
   try {
     const { value, error } = partnershipSchema.validate(req.body, {
@@ -357,7 +485,7 @@ router.post('/partnership', authenticate, requireCsrf, async (req: any, res: any
       return res.status(400).json({ message: 'Cannot partner with yourself' })
     }
 
-    // Check if partnership already exists
+    // Check if partnership already exists in either direction
     const existingPartnership = await prisma.partnership.findFirst({
       where: {
         OR: [
@@ -367,22 +495,185 @@ router.post('/partnership', authenticate, requireCsrf, async (req: any, res: any
       }
     })
 
-    if (existingPartnership) {
-      return res.status(400).json({ message: 'Partnership already exists' })
+    if (existingPartnership?.status === 'active') {
+      return res.status(400).json({ message: 'Partnership already active' })
     }
 
-    // Create partnership
+    // Auto-accept if target user already invited current user
+    if (
+      existingPartnership?.status === 'pending' &&
+      existingPartnership.userId === partner.id &&
+      existingPartnership.partnerId === userId
+    ) {
+      const partnership = await prisma.partnership.update({
+        where: { id: existingPartnership.id },
+        data: { status: 'active' }
+      })
+
+      return res.json({
+        message: 'Partnership activated',
+        status: 'active',
+        partnership
+      })
+    }
+
+    if (existingPartnership?.status === 'pending') {
+      return res.status(400).json({ message: 'Pending invite already exists' })
+    }
+
+    if (existingPartnership?.status === 'inactive') {
+      await prisma.partnership.delete({
+        where: { id: existingPartnership.id }
+      })
+    }
+
+    // Create pending invite
     const partnership = await prisma.partnership.create({
       data: {
         userId,
         partnerId: partner.id,
-        status: 'active'
+        status: 'pending'
       }
     })
 
-    res.json({ message: 'Partnership created successfully', partnership })
+    res.status(201).json({
+      message: 'Partnership invite sent',
+      status: 'pending',
+      partnership
+    })
   } catch (error) {
     console.error('Create partnership error:', error)
+    res.status(500).json({ message: 'Server error' })
+  }
+})
+
+// Accept partnership invite
+router.post('/partnership/:id/accept', authenticate, requireCsrf, async (req: any, res: any) => {
+  try {
+    const { value, error } = partnershipIdSchema.validate(req.params, {
+      abortEarly: true,
+      stripUnknown: true
+    })
+
+    if (error) {
+      return res.status(400).json({ message: getValidationMessage(error) })
+    }
+
+    const userId = req.user.id
+
+    const partnership = await prisma.partnership.findUnique({
+      where: { id: value.id }
+    })
+
+    if (!partnership) {
+      return res.status(404).json({ message: 'Partnership invite not found' })
+    }
+
+    if (partnership.status !== 'pending') {
+      return res.status(400).json({ message: 'Partnership invite is not pending' })
+    }
+
+    if (partnership.partnerId !== userId) {
+      return res.status(403).json({ message: 'Only invited user can accept this invite' })
+    }
+
+    const updatedPartnership = await prisma.partnership.update({
+      where: { id: value.id },
+      data: { status: 'active' }
+    })
+
+    res.json({
+      message: 'Partnership accepted',
+      partnership: updatedPartnership
+    })
+  } catch (error) {
+    console.error('Accept partnership error:', error)
+    res.status(500).json({ message: 'Server error' })
+  }
+})
+
+// Decline partnership invite
+router.post('/partnership/:id/decline', authenticate, requireCsrf, async (req: any, res: any) => {
+  try {
+    const { value, error } = partnershipIdSchema.validate(req.params, {
+      abortEarly: true,
+      stripUnknown: true
+    })
+
+    if (error) {
+      return res.status(400).json({ message: getValidationMessage(error) })
+    }
+
+    const userId = req.user.id
+
+    const partnership = await prisma.partnership.findUnique({
+      where: { id: value.id }
+    })
+
+    if (!partnership) {
+      return res.status(404).json({ message: 'Partnership invite not found' })
+    }
+
+    if (partnership.status !== 'pending') {
+      return res.status(400).json({ message: 'Partnership invite is not pending' })
+    }
+
+    if (partnership.partnerId !== userId) {
+      return res.status(403).json({ message: 'Only invited user can decline this invite' })
+    }
+
+    await prisma.partnership.update({
+      where: { id: value.id },
+      data: { status: 'inactive' }
+    })
+
+    res.json({ message: 'Partnership invite declined' })
+  } catch (error) {
+    console.error('Decline partnership error:', error)
+    res.status(500).json({ message: 'Server error' })
+  }
+})
+
+// Disconnect active partnership
+router.delete('/partnership/:id', authenticate, requireCsrf, async (req: any, res: any) => {
+  try {
+    const { value, error } = partnershipIdSchema.validate(req.params, {
+      abortEarly: true,
+      stripUnknown: true
+    })
+
+    if (error) {
+      return res.status(400).json({ message: getValidationMessage(error) })
+    }
+
+    const userId = req.user.id
+
+    const partnership = await prisma.partnership.findUnique({
+      where: { id: value.id }
+    })
+
+    if (!partnership) {
+      return res.status(404).json({ message: 'Partnership not found' })
+    }
+
+    const isParticipant = partnership.userId === userId || partnership.partnerId === userId
+
+    if (!isParticipant) {
+      return res.status(403).json({ message: 'Access denied' })
+    }
+
+    if (partnership.status !== 'active') {
+      return res.status(400).json({ message: 'Partnership is not active' })
+    }
+
+    await prisma.partnership.update({
+      where: { id: value.id },
+      data: { status: 'inactive' }
+    })
+
+    res.status(204).send()
+  } catch (error) {
+    console.error('Disconnect partnership error:', error)
     res.status(500).json({ message: 'Server error' })
   }
 })

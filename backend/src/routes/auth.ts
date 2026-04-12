@@ -148,6 +148,20 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ message: 'Invalid credentials' })
     }
 
+    const activePartnership = await prisma.partnership.findFirst({
+      where: {
+        status: 'active',
+        OR: [
+          { userId: user.id },
+          { partnerId: user.id }
+        ]
+      }
+    })
+
+    const partnerId = activePartnership
+      ? (activePartnership.userId === user.id ? activePartnership.partnerId : activePartnership.userId)
+      : undefined
+
     // Generate JWT
     const token = jwt.sign(
       { id: user.id, email: user.email, username: user.username },
@@ -166,7 +180,8 @@ router.post('/login', async (req, res) => {
       csrfToken,
       user: {
         ...userWithoutPassword,
-        interests: userInterests
+        interests: userInterests,
+        partnerId
       }
     })
   } catch (error) {
@@ -185,17 +200,6 @@ router.get('/me', authenticate, async (req: any, res) => {
           include: {
             interest: true
           }
-        },
-        partnerships: {
-          include: {
-            partner: {
-              select: {
-                id: true,
-                username: true,
-                avatar: true
-              }
-            }
-          }
         }
       }
     })
@@ -205,14 +209,26 @@ router.get('/me', authenticate, async (req: any, res) => {
     }
 
     const userInterests = user.interests.map((ui: any) => ui.interest.name)
-    const activePartnership = user.partnerships.find((p: any) => p.status === 'active')
-    
-    const { password: _, interests: __, partnerships: ___, ...userWithoutPassword } = user
+    const activePartnership = await prisma.partnership.findFirst({
+      where: {
+        status: 'active',
+        OR: [
+          { userId: user.id },
+          { partnerId: user.id }
+        ]
+      }
+    })
+
+    const partnerId = activePartnership
+      ? (activePartnership.userId === user.id ? activePartnership.partnerId : activePartnership.userId)
+      : undefined
+
+    const { password: _, interests: __, ...userWithoutPassword } = user
 
     res.json({
       ...userWithoutPassword,
       interests: userInterests,
-      partnerId: activePartnership?.partnerId
+      partnerId
     })
   } catch (error) {
     console.error('Get user error:', error)

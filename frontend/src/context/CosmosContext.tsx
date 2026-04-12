@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'
+import { useAuth } from './AuthContext'
 
 interface Star {
   id: string
@@ -38,36 +39,91 @@ export const useCosmos = () => {
 export const CosmosProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [stars, setStars] = useState<Star[]>([])
   const [constellations, setConstellations] = useState<Constellation[]>([])
-  const [orbitLevel, setOrbitLevel] = useState(50)
+  const [orbitLevel, setOrbitLevel] = useState(10)
+  const { user } = useAuth()
 
-  // Initialize with some sample stars
   useEffect(() => {
-    const sampleStars: Star[] = [
-      { id: '1', name: 'Music', x: 150, y: 100, brightness: 0.8, category: 'entertainment' },
-      { id: '2', name: 'Coding', x: 300, y: 150, brightness: 0.9, category: 'work' },
-      { id: '3', name: 'Coffee', x: 200, y: 250, brightness: 0.7, category: 'lifestyle' },
-      { id: '4', name: 'Travel', x: 400, y: 180, brightness: 0.85, category: 'adventure' },
-      { id: '5', name: 'Reading', x: 120, y: 300, brightness: 0.6, category: 'learning' },
-    ]
+    const loadCosmos = async () => {
+      const token = localStorage.getItem('token')
 
-    const sampleConstellations: Constellation[] = [
-      {
-        id: 'shared-1',
-        name: 'Creative Souls',
-        stars: [sampleStars[0], sampleStars[1]], // Music + Coding
-        connections: [[0, 1]]
-      },
-      {
-        id: 'shared-2',
-        name: 'Life Explorers',
-        stars: [sampleStars[2], sampleStars[3], sampleStars[4]], // Coffee + Travel + Reading
-        connections: [[0, 1], [1, 2]]
+      if (!user || !token) {
+        setStars([])
+        setConstellations([])
+        setOrbitLevel(10)
+        return
       }
-    ]
 
-    setStars(sampleStars)
-    setConstellations(sampleConstellations)
-  }, [])
+      try {
+        const response = await fetch('/api/users/cosmos', {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        })
+
+        if (!response.ok) {
+          throw new Error('Failed to load cosmos data')
+        }
+
+        const data = await response.json()
+
+        const normalizedStars: Star[] = Array.isArray(data.stars)
+          ? data.stars.map((star: any, index: number) => ({
+              id: String(star.id || `star-${index}`),
+              name: String(star.name || `Star ${index + 1}`),
+              x: Number(star.x || 200),
+              y: Number(star.y || 200),
+              brightness: Number(star.brightness || 0.75),
+              category: String(star.category || 'custom')
+            }))
+          : []
+
+        const normalizedConstellations: Constellation[] = Array.isArray(data.constellations)
+          ? data.constellations.map((constellation: any, index: number) => {
+              const constellationStars: Star[] = Array.isArray(constellation.stars)
+                ? constellation.stars.map((star: any, starIndex: number) => ({
+                    id: String(star.id || `${index}-${starIndex}`),
+                    name: String(star.name || `Star ${starIndex + 1}`),
+                    x: Number(star.x || 200),
+                    y: Number(star.y || 200),
+                    brightness: Number(star.brightness || 0.75),
+                    category: String(star.category || 'custom')
+                  }))
+                : []
+
+              const connections: Array<[number, number]> = Array.isArray(constellation.connections)
+                ? constellation.connections
+                    .map((connection: any) => {
+                      if (!Array.isArray(connection) || connection.length !== 2) {
+                        return null
+                      }
+
+                      return [Number(connection[0]), Number(connection[1])] as [number, number]
+                    })
+                    .filter(Boolean) as Array<[number, number]>
+                : []
+
+              return {
+                id: String(constellation.id || `constellation-${index}`),
+                name: String(constellation.name || `Constellation ${index + 1}`),
+                stars: constellationStars,
+                connections
+              }
+            })
+          : []
+
+        setStars(normalizedStars)
+        setConstellations(normalizedConstellations)
+        setOrbitLevel(Math.max(0, Math.min(100, Number(data.orbitLevel || 10))))
+      } catch (error) {
+        console.error('Failed to load cosmos data:', error)
+        setStars([])
+        setConstellations([])
+        setOrbitLevel(10)
+      }
+    }
+
+    loadCosmos()
+  }, [user?.id, user?.partnerId])
 
   const addStar = (starData: Omit<Star, 'id'>) => {
     const newStar: Star = {

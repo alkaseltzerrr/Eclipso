@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
 import { ensureCsrfToken, withCsrfHeader } from '../utils/csrf'
+import { getApiErrorMessage } from '../utils/api'
 
 interface User {
   id: string
@@ -77,8 +78,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     })
 
     if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.message || 'Login failed')
+      throw new Error(await getApiErrorMessage(response, 'Login failed'))
     }
 
     const { user: userData } = await response.json()
@@ -98,8 +98,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     })
 
     if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.message || 'Registration failed')
+      throw new Error(await getApiErrorMessage(response, 'Registration failed'))
     }
 
     const { user: userData } = await response.json()
@@ -135,8 +134,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     })
 
     if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.message || 'Profile update failed')
+      throw new Error(await getApiErrorMessage(response, 'Profile update failed'))
     }
 
     await fetchUser()

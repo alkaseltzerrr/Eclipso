@@ -635,6 +635,48 @@ router.post('/partnership/:id/decline', authenticate, requireCsrf, partnershipAc
   }
 })
 
+// Cancel outgoing partnership invite
+router.post('/partnership/:id/cancel', authenticate, requireCsrf, partnershipActionRateLimit, async (req: any, res: any) => {
+  try {
+    const { value, error } = partnershipIdSchema.validate(req.params, {
+      abortEarly: true,
+      stripUnknown: true
+    })
+
+    if (error) {
+      return res.status(400).json({ message: getValidationMessage(error) })
+    }
+
+    const userId = req.user.id
+
+    const partnership = await prisma.partnership.findUnique({
+      where: { id: value.id }
+    })
+
+    if (!partnership) {
+      return res.status(404).json({ message: 'Partnership invite not found' })
+    }
+
+    if (partnership.status !== 'pending') {
+      return res.status(400).json({ message: 'Partnership invite is not pending' })
+    }
+
+    if (partnership.userId !== userId) {
+      return res.status(403).json({ message: 'Only invite sender can cancel this invite' })
+    }
+
+    await prisma.partnership.update({
+      where: { id: value.id },
+      data: { status: 'inactive' }
+    })
+
+    res.json({ message: 'Partnership invite canceled' })
+  } catch (error) {
+    console.error('Cancel partnership invite error:', error)
+    res.status(500).json({ message: 'Server error' })
+  }
+})
+
 // Disconnect active partnership
 router.delete('/partnership/:id', authenticate, requireCsrf, partnershipActionRateLimit, async (req: any, res: any) => {
   try {

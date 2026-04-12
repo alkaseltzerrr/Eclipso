@@ -253,3 +253,173 @@ Eclipso represents the beauty of human connections visualized through the infini
 ---
 
 *"In the cosmic dance of connection, every shared moment creates a new star in our constellation."*
+
+Goal: Scaffold the initial draft of Eclipso, a cosmic-themed networking app for two people (partners, friends, collaborators) to stay connected in a unique, visual way.
+
+🌑 Concept
+
+Eclipso visualizes a relationship as a shared mini-universe.
+
+Chat → comet-like messages.
+
+Interests → stars that form constellations when they overlap.
+
+Mood updates → moons orbiting user avatars.
+
+Capsules → glowing orbs with shared memories (notes, images, voice).
+
+Orbit meter → visual gauge of how active the connection is.
+
+🎨 Design Language (Elegant Cosmic)
+
+Colors:
+
+Deep Space Navy #0B0E2C (bg)
+
+Eclipse Black #1A1A2E (panels)
+
+Aurora Purple #8A5DFF (primary)
+
+Nebula Rose #FF4F91 (secondary)
+
+Starlight Cyan #00FFE0 (glows)
+
+Solar Gold #F9A826 (milestones)
+
+Typography: Orbitron (headings), Poppins SemiBold (subheadings), Inter (body).
+
+UI Motifs: constellations, glowing orbs, smooth animations.
+
+🛠 Tech Stack
+
+Frontend: React + Vite + TailwindCSS
+
+UI Components: shadcn/ui, lucide-react
+
+Backend: Node.js (Express)
+
+Database: PostgreSQL with Prisma ORM
+
+Auth: JWT (basic email/password)
+
+Real-time: Socket.io (chat + live constellation updates)
+
+🎯 MVP Features
+
+Onboarding / Profile Setup
+
+Create account → choose avatar orb → select interests.
+
+Cosmos Dashboard
+
+Starfield background.
+
+Shared interests = glowing constellations.
+
+Mood = orbiting moons.
+
+Chat
+
+Real-time messaging with comet animation.
+
+Capsules
+
+Orb container for shared notes/media.
+
+Unlockable with both users’ actions.
+
+Orbit Meter
+
+Expands/contracts based on interaction frequency.
+
+📦 Deliverables
+
+Scaffold project with React + Vite + Tailwind + shadcn/ui.
+
+Basic Express backend with JWT auth.
+
+Prisma schema + Postgres connection.
+
+Socket.io setup for real-time chat.
+
+Components: Cosmos view, Chat panel, Capsule modal, Orbit meter.
+
+Example seed data (two users, stars/interests, dummy messages).
+
+💡 Instruction for Copilot/Cursor:
+Use this brief to generate:
+
+README.md with project overview.
+
+Initial frontend/ React + Vite + Tailwind scaffold.
+
+Initial backend/ Express + Prisma + Socket.io scaffold.
+
+Example components (Cosmos.tsx, Chat.tsx, Capsule.tsx, etc.) with placeholder data and styling hooks.
+
+
+
+Commit Project Structure
+eclipso/
+├── README.md              # Project brief (include the prompt here)
+├── frontend/              # React + Vite + Tailwind app
+│   ├── index.html
+│   ├── package.json
+│   ├── vite.config.js
+│   ├── postcss.config.js
+│   ├── tailwind.config.js
+│   └── src/
+│       ├── main.tsx
+│       ├── App.tsx
+│       ├── assets/        # logos, backgrounds, cosmic svgs
+│       ├── components/    
+│       │   ├── Cosmos.tsx        # starfield + constellations
+│       │   ├── Chat.tsx          # real-time chat
+│       │   ├── Capsule.tsx       # shared orb capsule
+│       │   ├── OrbitMeter.tsx    # gauge of interaction
+│       │   └── ui/               # shadcn/ui components
+│       ├── pages/
+│       │   ├── Onboarding.tsx    # profile setup
+│       │   ├── Dashboard.tsx     # cosmos view
+│       │   └── Login.tsx         # auth
+│       ├── hooks/                # custom hooks (useAuth, useSocket)
+│       ├── context/              # React contexts (auth, chat, cosmos)
+│       └── styles/               # Tailwind custom styles
+│
+├── backend/               # Express + Prisma + Socket.io
+│   ├── package.json
+│   ├── tsconfig.json
+│   ├── src/
+│   │   ├── index.ts        # Express entry
+│   │   ├── server.ts       # app + socket.io
+│   │   ├── prisma/         
+│   │   │   └── schema.prisma   # PostgreSQL schema
+│   │   ├── routes/
+│   │   │   ├── auth.ts     # login/signup, JWT
+│   │   │   ├── users.ts    # profile + interests
+│   │   │   └── chat.ts     # chat + capsules
+│   │   ├── controllers/
+│   │   │   ├── authController.ts
+│   │   │   ├── userController.ts
+│   │   │   └── chatController.ts
+│   │   ├── middleware/
+│   │   │   └── authMiddleware.ts
+│   │   └── utils/
+│   │       └── jwt.ts
+│   └── prisma/
+│       └── migrations/    # database migrations
+│
+└── .gitignore
+
+
+
+So please:
+1. Scaffold the frontend (React + Vite + Tailwind) with placeholder pages + components.
+
+2. Scaffold the backend (Express + Prisma + Socket.io) with auth + chat routes.
+
+3. Create a basic Prisma schema with User, Interest, Message, Capsule.
+
+4. Wire up Socket.io for chat + constellation updates.
+
+5. Add a seed script with dummy users, sample stars/interests, and messages.

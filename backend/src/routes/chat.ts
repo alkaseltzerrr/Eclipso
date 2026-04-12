@@ -4,7 +4,6 @@ import { requireCsrf } from '../middleware/csrfMiddleware'
 import prisma from '../lib/prisma'
 
 const router = express.Router()
-const prismaAny = prisma as any
 
 const findActivePartnership = async (userId: string, partnerId: string) => {
   return prisma.partnership.findFirst({
@@ -272,7 +271,7 @@ router.put('/capsules/:id/unlock', authenticate, requireCsrf, async (req: any, r
     const viewerAlreadyVoted = existingVotes.some((vote: { userId: string }) => vote.userId === userId)
 
     if (!viewerAlreadyVoted) {
-      await prismaAny.capsuleUnlockVote.upsert({
+      await prisma.capsuleUnlockVote.upsert({
         where: {
           capsuleId_userId: {
             capsuleId: id,
@@ -287,7 +286,7 @@ router.put('/capsules/:id/unlock', authenticate, requireCsrf, async (req: any, r
       })
     }
 
-    const unlockVotesCount = await prismaAny.capsuleUnlockVote.count({
+    const unlockVotesCount = await prisma.capsuleUnlockVote.count({
       where: { capsuleId: id }
     })
 

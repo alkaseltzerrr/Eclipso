@@ -1,10 +1,26 @@
 import express from 'express'
+import Joi from 'joi'
 import { authenticate } from '../middleware/authMiddleware'
 import { requireCsrf } from '../middleware/csrfMiddleware'
 import { writeRateLimit } from '../middleware/rateLimitMiddleware'
 import prisma from '../lib/prisma'
 
 const router = express.Router()
+
+const capsuleCreateSchema = Joi.object({
+  title: Joi.string().trim().min(1).max(120).required(),
+  content: Joi.string().trim().min(1).max(4000).required(),
+  type: Joi.string().valid('text', 'image', 'audio').default('text'),
+  isLocked: Joi.boolean().default(false)
+})
+
+const mediaUrlSchema = Joi.string().uri({
+  scheme: ['http', 'https']
+})
+
+const getValidationMessage = (error: Joi.ValidationError) => {
+  return error.details[0]?.message || 'Invalid request payload'
+}
 
 const findActivePartnership = async (userId: string, partnerId: string) => {
   return prisma.partnership.findFirst({
@@ -215,8 +231,28 @@ router.get('/capsules', authenticate, async (req: any, res: any) => {
 // Create a new capsule
 router.post('/capsules', authenticate, requireCsrf, writeRateLimit, async (req: any, res: any) => {
   try {
-    const { title, content, type = 'text', isLocked = false } = req.body
+    const { value, error } = capsuleCreateSchema.validate(req.body, {
+      abortEarly: true,
+      stripUnknown: true
+    })
+
+    if (error) {
+      return res.status(400).json({ message: getValidationMessage(error) })
+    }
+
+    const title = value.title as string
+    const content = value.content as string
+    const type = value.type as 'text' | 'image' | 'audio'
+    const isLocked = value.isLocked as boolean
     const userId = req.user.id
+
+    if (type === 'image' || type === 'audio') {
+      const { error: mediaUrlError } = mediaUrlSchema.validate(content)
+
+      if (mediaUrlError) {
+        return res.status(400).json({ message: 'Image/audio capsules require valid http(s) URL content' })
+      }
+    }
 
     // Find active partnership
     const partnership = await prisma.partnership.findFirst({

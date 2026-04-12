@@ -17,6 +17,13 @@ interface CapsuleData {
   viewerHasVoted?: boolean
 }
 
+interface NewCapsuleState {
+  title: string
+  content: string
+  type: 'text' | 'image' | 'audio'
+  isLocked: boolean
+}
+
 const Capsule: React.FC = () => {
   const { user } = useAuth()
   const [isOpen, setIsOpen] = useState(false)
@@ -25,10 +32,10 @@ const Capsule: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false)
   const [isCreating, setIsCreating] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
-  const [newCapsule, setNewCapsule] = useState({
+  const [newCapsule, setNewCapsule] = useState<NewCapsuleState>({
     title: '',
     content: '',
-    type: 'text' as const,
+    type: 'text',
     isLocked: false
   })
 
@@ -152,6 +159,71 @@ const Capsule: React.FC = () => {
       console.error('Unlock capsule error:', error)
       setActionError(error instanceof Error ? error.message : 'Failed to unlock capsule')
     }
+  }
+
+  const renderCapsuleContent = (capsule: CapsuleData) => {
+    if (capsule.type === 'image') {
+      return (
+        <div className="space-y-2">
+          <img
+            src={capsule.content}
+            alt={capsule.title}
+            className="w-full max-h-56 object-cover rounded-lg border border-aurora-purple/20"
+            loading="lazy"
+          />
+          <a
+            href={capsule.content}
+            target="_blank"
+            rel="noreferrer"
+            className="text-xs text-starlight-cyan hover:underline"
+          >
+            Open image source
+          </a>
+        </div>
+      )
+    }
+
+    if (capsule.type === 'audio') {
+      return (
+        <div className="space-y-2">
+          <audio controls src={capsule.content} preload="none" className="w-full" />
+          <a
+            href={capsule.content}
+            target="_blank"
+            rel="noreferrer"
+            className="text-xs text-starlight-cyan hover:underline"
+          >
+            Open audio source
+          </a>
+        </div>
+      )
+    }
+
+    return <p className="text-starlight-cyan/80">{capsule.content}</p>
+  }
+
+  const getContentLabel = () => {
+    if (newCapsule.type === 'image') {
+      return 'Image URL'
+    }
+
+    if (newCapsule.type === 'audio') {
+      return 'Audio URL'
+    }
+
+    return 'Memory Content'
+  }
+
+  const getContentPlaceholder = () => {
+    if (newCapsule.type === 'image') {
+      return 'https://example.com/memory.jpg'
+    }
+
+    if (newCapsule.type === 'audio') {
+      return 'https://example.com/memory.mp3'
+    }
+
+    return 'Capture this moment in words...'
   }
 
   return (
@@ -336,9 +408,7 @@ const Capsule: React.FC = () => {
                             )}
                           </div>
                         </div>
-                        <p className="text-starlight-cyan/80">
-                          {capsule.content}
-                        </p>
+                        {renderCapsuleContent(capsule)}
                       </div>
                     ))}
                   </div>
@@ -390,15 +460,25 @@ const Capsule: React.FC = () => {
 
                     <div>
                       <label className="block text-starlight-cyan text-sm font-medium mb-2">
-                        Memory Content
+                        {getContentLabel()}
                       </label>
-                      <textarea
-                        value={newCapsule.content}
-                        onChange={(e) => setNewCapsule({...newCapsule, content: e.target.value})}
-                        rows={4}
-                        className="w-full px-4 py-3 bg-deep-space/50 border border-aurora-purple/30 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-aurora-purple focus:ring-1 focus:ring-aurora-purple resize-none"
-                        placeholder="Capture this moment in words..."
-                      />
+                      {newCapsule.type === 'text' ? (
+                        <textarea
+                          value={newCapsule.content}
+                          onChange={(e) => setNewCapsule({...newCapsule, content: e.target.value})}
+                          rows={4}
+                          className="w-full px-4 py-3 bg-deep-space/50 border border-aurora-purple/30 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-aurora-purple focus:ring-1 focus:ring-aurora-purple resize-none"
+                          placeholder={getContentPlaceholder()}
+                        />
+                      ) : (
+                        <input
+                          type="url"
+                          value={newCapsule.content}
+                          onChange={(e) => setNewCapsule({...newCapsule, content: e.target.value})}
+                          className="w-full px-4 py-3 bg-deep-space/50 border border-aurora-purple/30 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-aurora-purple focus:ring-1 focus:ring-aurora-purple"
+                          placeholder={getContentPlaceholder()}
+                        />
+                      )}
                     </div>
 
                     <div className="rounded-lg border border-solar-gold/30 bg-solar-gold/5 p-3">

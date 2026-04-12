@@ -27,8 +27,6 @@ const Capsule: React.FC = () => {
     type: 'text' as const
   })
 
-  const getToken = () => localStorage.getItem('token')
-
   const normalizeCapsule = (capsule: any): CapsuleData => {
     return {
       id: capsule.id,
@@ -44,20 +42,12 @@ const Capsule: React.FC = () => {
   }
 
   const loadCapsules = async () => {
-    const token = getToken()
-
-    if (!token) {
-      return
-    }
-
     setIsLoading(true)
     setActionError(null)
 
     try {
       const response = await fetch('/api/chat/capsules', {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
+        credentials: 'include'
       })
 
       if (!response.ok) {
@@ -81,9 +71,7 @@ const Capsule: React.FC = () => {
   }, [isOpen])
 
   const handleCreateCapsule = async () => {
-    const token = getToken()
-
-    if (!token || !newCapsule.title || !newCapsule.content) {
+    if (!newCapsule.title || !newCapsule.content) {
       return
     }
 
@@ -93,9 +81,9 @@ const Capsule: React.FC = () => {
     try {
       const response = await fetch('/api/chat/capsules', {
         method: 'POST',
+        credentials: 'include',
         headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           title: newCapsule.title,
@@ -122,20 +110,12 @@ const Capsule: React.FC = () => {
   }
 
   const handleUnlockCapsule = async (capsuleId: string) => {
-    const token = getToken()
-
-    if (!token) {
-      return
-    }
-
     setActionError(null)
 
     try {
       const response = await fetch(`/api/chat/capsules/${capsuleId}/unlock`, {
         method: 'PUT',
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
+        credentials: 'include'
       })
 
       if (!response.ok) {

@@ -67,9 +67,9 @@ export default {
         sm: "calc(var(--radius) - 4px)",
       },
       fontFamily: {
-        'orbitron': ['Orbitron', 'sans-serif'],
-        'poppins': ['Poppins', 'sans-serif'],
-        'inter': ['Inter', 'sans-serif'],
+        'orbitron': ['Syne', 'sans-serif'],
+        'poppins': ['Cormorant Garamond', 'serif'],
+        'inter': ['Sora', 'sans-serif'],
       },
       keyframes: {
         "accordion-down": {

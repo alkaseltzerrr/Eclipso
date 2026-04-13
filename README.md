@@ -44,7 +44,7 @@ Eclipso visualizes relationships as shared mini-universes where:
 
 ### Backend
 - **Node.js** + **Express** + **TypeScript**
-- **PostgreSQL** with **Prisma ORM**
+- **MongoDB Atlas** with **Prisma ORM**
 - **JWT** authentication
 - **Socket.io** for real-time chat and live updates
 - **bcryptjs** for password hashing
@@ -129,7 +129,7 @@ eclipso/
 
 ### Prerequisites
 - Node.js 18+ 
-- PostgreSQL 14+
+- MongoDB Atlas connection string
 - npm or yarn
 
 ### Installation
@@ -147,10 +147,10 @@ eclipso/
    
    # Setup environment variables
    cp .env.example .env
-   # Edit .env with your PostgreSQL connection and JWT secret
+   # Edit .env with your MongoDB connection and JWT secret
    
    # Setup database
-   npx prisma migrate dev
+   npx prisma db push
    npx prisma generate
    
    # Seed sample data
@@ -298,7 +298,7 @@ UI Components: shadcn/ui, lucide-react
 
 Backend: Node.js (Express)
 
-Database: PostgreSQL with Prisma ORM
+Database: MongoDB Atlas with Prisma ORM
 
 Auth: JWT (basic email/password)
 
@@ -338,7 +338,7 @@ Scaffold project with React + Vite + Tailwind + shadcn/ui.
 
 Basic Express backend with JWT auth.
 
-Prisma schema + Postgres connection.
+Prisma schema + MongoDB connection.
 
 Socket.io setup for real-time chat.
 
@@ -393,7 +393,7 @@ eclipso/
 │   │   ├── index.ts        # Express entry
 │   │   ├── server.ts       # app + socket.io
 │   │   ├── prisma/         
-│   │   │   └── schema.prisma   # PostgreSQL schema
+│   │   │   └── schema.prisma   # MongoDB schema
 │   │   ├── routes/
 │   │   │   ├── auth.ts     # login/signup, JWT
 │   │   │   ├── users.ts    # profile + interests

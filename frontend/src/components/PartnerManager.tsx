@@ -185,6 +185,33 @@ const PartnerManager: React.FC = () => {
     }
   }
 
+  const cancelOutgoingInvite = async (id: string) => {
+    setIsSubmitting(true)
+    setError(null)
+    setSuccess(null)
+
+    try {
+      const csrfHeaders = await withCsrfHeader()
+      const response = await fetch(`/api/users/partnership/${id}/cancel`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: csrfHeaders
+      })
+
+      if (!response.ok) {
+        throw new Error(await getApiErrorMessage(response, 'Failed to cancel invite'))
+      }
+
+      setSuccess('Invite canceled')
+      await loadPartnerships()
+      await refreshUser()
+    } catch (cancelError) {
+      setError(cancelError instanceof Error ? cancelError.message : 'Failed to cancel invite')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
   return (
     <div className="bg-eclipse-black/60 backdrop-blur-sm rounded-xl border border-aurora-purple/20 p-6">
       <div className="flex items-center space-x-3 mb-4">
@@ -282,7 +309,16 @@ const PartnerManager: React.FC = () => {
               {data.outgoingInvites.map((invite) => (
                 <div key={invite.id} className="p-2 rounded border border-aurora-purple/40 bg-aurora-purple/10">
                   <p className="text-sm text-starlight-cyan">{invite.partner?.username}</p>
-                  <p className="text-xs text-aurora-purple/70">Awaiting response</p>
+                  <div className="mt-1 flex items-center justify-between gap-2">
+                    <p className="text-xs text-aurora-purple/70">Awaiting response</p>
+                    <button
+                      disabled={isSubmitting}
+                      onClick={() => cancelOutgoingInvite(invite.id)}
+                      className="px-2 py-1 rounded border border-nebula-rose/60 text-nebula-rose text-xs disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>

@@ -6,12 +6,12 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mongodb"
   url      = env("DATABASE_URL")
 }
 
 model User {
-  id          String   @id @default(cuid())
+  id          String   @id @default(cuid()) @map("_id")
   email       String   @unique
   username    String   @unique
   password    String
@@ -33,7 +33,7 @@ model User {
 }
 
 model Interest {
-  id       String @id @default(cuid())
+  id       String @id @default(cuid()) @map("_id")
   name     String @unique
   category String
   icon     String?
@@ -44,7 +44,7 @@ model Interest {
 }
 
 model UserInterest {
-  id         String @id @default(cuid())
+  id         String @id @default(cuid()) @map("_id")
   userId     String
   interestId String
 
@@ -56,7 +56,7 @@ model UserInterest {
 }
 
 model Partnership {
-  id        String   @id @default(cuid())
+  id        String   @id @default(cuid()) @map("_id")
   userId    String
   partnerId String
   status    String   @default("pending") // pending, active, inactive
@@ -74,7 +74,7 @@ model Partnership {
 }
 
 model Message {
-  id            String   @id @default(cuid())
+  id            String   @id @default(cuid()) @map("_id")
   content       String
   type          String   @default("text") // text, capsule, system
   senderId      String
@@ -91,7 +91,7 @@ model Message {
 }
 
 model Capsule {
-  id            String   @id @default(cuid())
+  id            String   @id @default(cuid()) @map("_id")
   title         String
   content       String
   type          String   @default("text") // text, image, audio
@@ -110,7 +110,7 @@ model Capsule {
 }
 
 model CapsuleUnlockVote {
-  id        String   @id @default(cuid())
+  id        String   @id @default(cuid()) @map("_id")
   capsuleId String
   userId    String
   createdAt DateTime @default(now())
@@ -123,7 +123,7 @@ model CapsuleUnlockVote {
 }
 
 model ConstellationData {
-  id            String   @id @default(cuid())
+  id            String   @id @default(cuid()) @map("_id")
   partnershipId String
   stars         Json     // Store star positions and connections as JSON
   orbitLevel    Int      @default(50)

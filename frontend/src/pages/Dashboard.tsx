@@ -1,65 +1,237 @@
-import React from 'react'
-import Cosmos from '../components/Cosmos'
-import Chat from '../components/Chat'
-import OrbitMeter from '../components/OrbitMeter'
+import React, { useMemo, useState } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
+import { BookOpen, LogOut, MessageCircle, Orbit, Sparkles, Users } from 'lucide-react'
 import Capsule from '../components/Capsule'
+import Chat from '../components/Chat'
+import Cosmos from '../components/Cosmos'
+import OrbitMeter from '../components/OrbitMeter'
 import PartnerManager from '../components/PartnerManager'
 import { useAuth } from '../context/AuthContext'
-import { LogOut, Settings } from 'lucide-react'
+
+type SectionId = 'atlas' | 'messages' | 'capsules' | 'bonds'
 
 const Dashboard: React.FC = () => {
   const { user, logout } = useAuth()
+  const [activeSection, setActiveSection] = useState<SectionId>('atlas')
+  const hasPartner = Boolean(user?.partnerId)
 
-  return (
-    <div className="min-h-screen p-4">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="font-orbitron text-3xl text-starlight-cyan mb-2">
-              Welcome to your Cosmos, {user?.username}
-            </h1>
-            <p className="text-aurora-purple/80 font-inter">
-              Your shared universe awaits exploration
-            </p>
-          </div>
-          
-          <div className="flex items-center space-x-4">
-            <button
-              className="p-2 text-aurora-purple hover:text-starlight-cyan transition-colors"
-              title="Settings"
-            >
-              <Settings className="w-6 h-6" />
-            </button>
-            <button
-              onClick={logout}
-              className="p-2 text-nebula-rose hover:text-red-400 transition-colors"
-              title="Logout"
-            >
-              <LogOut className="w-6 h-6" />
-            </button>
-          </div>
-        </div>
+  const sections = useMemo(() => {
+    return [
+      {
+        id: 'atlas' as const,
+        title: 'Sky Atlas',
+        subtitle: 'Shared stars and mood orbit',
+        icon: Orbit
+      },
+      {
+        id: 'messages' as const,
+        title: 'Message Orbit',
+        subtitle: 'Realtime heartline',
+        icon: MessageCircle
+      },
+      {
+        id: 'capsules' as const,
+        title: 'Capsule Constellation',
+        subtitle: 'Interlinked memory notes',
+        icon: BookOpen
+      },
+      {
+        id: 'bonds' as const,
+        title: 'Bond Room',
+        subtitle: 'Partnership lifecycle',
+        icon: Users
+      }
+    ]
+  }, [])
 
-        {/* Main Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-          {/* Cosmos View - Takes up 2 columns on large screens */}
-          <div className="lg:col-span-2">
+  const activeSectionData = sections.find((section) => section.id === activeSection)
+
+  const renderSection = () => {
+    if (activeSection === 'atlas') {
+      return (
+        <div className="grid grid-cols-1 xl:grid-cols-[2fr_1fr] gap-6">
+          <div className="space-y-6">
+            <div className="sentimental-haze rounded-2xl p-5 md:p-6">
+              <p className="text-xs tracking-[0.2em] uppercase text-starlight-cyan/70 mb-3">Shared Sky</p>
+              <h2 className="font-orbitron text-2xl md:text-3xl text-white leading-tight">
+                Every shared interest becomes star, every memory bends gravity.
+              </h2>
+              <p className="mt-3 text-aurora-purple/80 max-w-2xl">
+                This section focuses only on constellation and orbit mood so story of your bond reads like one clear sky map.
+              </p>
+            </div>
             <Cosmos />
           </div>
-
-          {/* Orbit Meter */}
-          <div className="flex flex-col space-y-6">
-            <PartnerManager />
+          <div className="space-y-6">
             <OrbitMeter />
-            <Capsule />
+            <div className="sentimental-haze rounded-2xl p-5">
+              <div className="flex items-center gap-2 text-solar-gold mb-2">
+                <Sparkles className="w-4 h-4" />
+                <span className="text-xs uppercase tracking-[0.18em]">Sentimental Pulse</span>
+              </div>
+              <p className="text-sm text-starlight-cyan/90 leading-relaxed">
+                Orbit level rises with dialogue and capsules. Low orbit means distance. High orbit means emotional gravity held.
+              </p>
+            </div>
+          </div>
+        </div>
+      )
+    }
+
+    if (activeSection === 'messages') {
+      return (
+        <div className="space-y-5">
+          <div className="sentimental-haze rounded-2xl p-5 md:p-6">
+            <p className="text-xs tracking-[0.2em] uppercase text-starlight-cyan/70 mb-2">Realtime Channel</p>
+            <h2 className="font-orbitron text-2xl text-white">Message Orbit</h2>
+            <p className="text-aurora-purple/80 mt-2">Chat isolated here so it feels like dedicated night call window, not widget.</p>
+          </div>
+          <div className="h-[65vh] min-h-[420px]">
+            <Chat />
+          </div>
+        </div>
+      )
+    }
+
+    if (activeSection === 'capsules') {
+      return (
+        <div className="space-y-5">
+          <div className="sentimental-haze rounded-2xl p-5 md:p-6">
+            <p className="text-xs tracking-[0.2em] uppercase text-starlight-cyan/70 mb-2">Interlinked Notes</p>
+            <h2 className="font-orbitron text-2xl text-white">Capsule Constellation</h2>
+            <p className="text-aurora-purple/80 mt-2">
+              Inspired by linked-note thinking. Current backend stores capsules individually; visual links are inferred in UI from shared themes and types.
+            </p>
+          </div>
+          <Capsule />
+        </div>
+      )
+    }
+
+    return (
+      <div className="grid grid-cols-1 xl:grid-cols-[1.1fr_0.9fr] gap-6">
+        <PartnerManager />
+        <div className="sentimental-haze rounded-2xl p-6">
+          <p className="text-xs tracking-[0.2em] uppercase text-starlight-cyan/70 mb-2">Bond Status</p>
+          <h2 className="font-orbitron text-2xl text-white mb-3">Partnership Room</h2>
+          <p className="text-aurora-purple/85 leading-relaxed">
+            Invite, accept, decline, disconnect all live here. This room handles relationship state while other rooms focus on expression.
+          </p>
+          <div className="mt-5">
+            <OrbitMeter />
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen px-4 py-6 md:py-8">
+      <div className="max-w-7xl mx-auto">
+        <div className="sentimental-haze rounded-3xl p-5 md:p-7 mb-6">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-xs tracking-[0.22em] uppercase text-starlight-cyan/70 mb-2">Eclipso Workspace</p>
+              <h1 className="font-orbitron text-3xl md:text-4xl text-white leading-tight">
+                {user?.username}, your universe now has rooms.
+              </h1>
+              <p className="text-aurora-purple/80 mt-3 max-w-3xl">
+                No more single crowded panel. Navigate each emotional layer separately: sky, dialogue, memory capsules, partnership.
+              </p>
+            </div>
+            <button
+              onClick={logout}
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-full border border-nebula-rose/50 text-nebula-rose hover:bg-nebula-rose/15 transition-colors"
+              title="Logout"
+            >
+              <LogOut className="w-4 h-4" />
+              <span className="text-sm">Logout</span>
+            </button>
           </div>
         </div>
 
-        {/* Chat Section */}
-        <div className="h-96">
-          <Chat />
+        {!hasPartner && (
+          <div className="grid grid-cols-1 xl:grid-cols-[1.1fr_0.9fr] gap-6">
+            <div className="sentimental-haze rounded-2xl p-6 md:p-7">
+              <p className="text-xs tracking-[0.22em] uppercase text-starlight-cyan/70 mb-2">Partner Onboarding</p>
+              <h2 className="font-orbitron text-3xl text-white leading-tight">First, grab a partner.</h2>
+              <p className="text-aurora-purple/85 mt-3 max-w-xl">
+                Eclipso is partner-heavy by design. Pair first, then Sky Atlas, Message Orbit, and Capsule Constellation unlock automatically.
+              </p>
+
+              <div className="mt-6 space-y-3">
+                <div className="rounded-xl border border-aurora-purple/30 bg-black/20 p-4">
+                  <p className="text-xs uppercase tracking-[0.18em] text-starlight-cyan/70">Step 1</p>
+                  <p className="text-starlight-cyan mt-1">Invite partner by email.</p>
+                </div>
+                <div className="rounded-xl border border-aurora-purple/30 bg-black/20 p-4">
+                  <p className="text-xs uppercase tracking-[0.18em] text-starlight-cyan/70">Step 2</p>
+                  <p className="text-starlight-cyan mt-1">Wait for accept, or accept incoming invite.</p>
+                </div>
+                <div className="rounded-xl border border-aurora-purple/30 bg-black/20 p-4">
+                  <p className="text-xs uppercase tracking-[0.18em] text-starlight-cyan/70">Step 3</p>
+                  <p className="text-starlight-cyan mt-1">Universe rooms unlock with shared stars and capsules.</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-6">
+              <PartnerManager />
+              <div className="sentimental-haze rounded-2xl p-5">
+                <p className="text-xs uppercase tracking-[0.2em] text-solar-gold/90 mb-2">Locked Until Paired</p>
+                <p className="text-sm text-starlight-cyan/90">
+                  Sky Atlas, Message Orbit, and Capsule Constellation remain dormant without active partner relation.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {hasPartner && (
+        <div className="grid grid-cols-1 xl:grid-cols-[280px_1fr] gap-6">
+          <aside className="sentimental-haze rounded-2xl p-3 md:p-4 h-fit">
+            <nav className="flex xl:flex-col gap-2 overflow-x-auto xl:overflow-visible">
+              {sections.map((section) => {
+                const Icon = section.icon
+                const isActive = activeSection === section.id
+
+                return (
+                  <button
+                    key={section.id}
+                    onClick={() => setActiveSection(section.id)}
+                    className={`min-w-[210px] xl:min-w-0 text-left rounded-xl p-3 transition-all border ${
+                      isActive
+                        ? 'border-starlight-cyan/50 bg-gradient-to-r from-aurora-purple/45 to-nebula-rose/35 text-white'
+                        : 'border-aurora-purple/20 bg-black/20 text-aurora-purple/85 hover:border-aurora-purple/45 hover:text-starlight-cyan'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Icon className="w-4 h-4" />
+                      <span className="font-orbitron text-sm">{section.title}</span>
+                    </div>
+                    <p className="text-xs mt-1 opacity-80">{section.subtitle}</p>
+                  </button>
+                )
+              })}
+            </nav>
+          </aside>
+
+          <div>
+            <AnimatePresence mode="wait">
+              <motion.section
+                key={activeSection}
+                initial={{ opacity: 0, y: 14 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.24 }}
+                aria-label={activeSectionData?.title || 'Dashboard section'}
+              >
+                {renderSection()}
+              </motion.section>
+            </AnimatePresence>
+          </div>
         </div>
+        )}
       </div>
     </div>
   )

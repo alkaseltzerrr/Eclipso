@@ -13,6 +13,7 @@ type SectionId = 'atlas' | 'messages' | 'capsules' | 'bonds'
 const Dashboard: React.FC = () => {
   const { user, logout } = useAuth()
   const [activeSection, setActiveSection] = useState<SectionId>('atlas')
+  const hasPartner = Boolean(user?.partnerId)
 
   const sections = useMemo(() => {
     return [
@@ -149,6 +150,44 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
 
+        {!hasPartner && (
+          <div className="grid grid-cols-1 xl:grid-cols-[1.1fr_0.9fr] gap-6">
+            <div className="sentimental-haze rounded-2xl p-6 md:p-7">
+              <p className="text-xs tracking-[0.22em] uppercase text-starlight-cyan/70 mb-2">Partner Onboarding</p>
+              <h2 className="font-orbitron text-3xl text-white leading-tight">First, grab a partner.</h2>
+              <p className="text-aurora-purple/85 mt-3 max-w-xl">
+                Eclipso is partner-heavy by design. Pair first, then Sky Atlas, Message Orbit, and Capsule Constellation unlock automatically.
+              </p>
+
+              <div className="mt-6 space-y-3">
+                <div className="rounded-xl border border-aurora-purple/30 bg-black/20 p-4">
+                  <p className="text-xs uppercase tracking-[0.18em] text-starlight-cyan/70">Step 1</p>
+                  <p className="text-starlight-cyan mt-1">Invite partner by email.</p>
+                </div>
+                <div className="rounded-xl border border-aurora-purple/30 bg-black/20 p-4">
+                  <p className="text-xs uppercase tracking-[0.18em] text-starlight-cyan/70">Step 2</p>
+                  <p className="text-starlight-cyan mt-1">Wait for accept, or accept incoming invite.</p>
+                </div>
+                <div className="rounded-xl border border-aurora-purple/30 bg-black/20 p-4">
+                  <p className="text-xs uppercase tracking-[0.18em] text-starlight-cyan/70">Step 3</p>
+                  <p className="text-starlight-cyan mt-1">Universe rooms unlock with shared stars and capsules.</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-6">
+              <PartnerManager />
+              <div className="sentimental-haze rounded-2xl p-5">
+                <p className="text-xs uppercase tracking-[0.2em] text-solar-gold/90 mb-2">Locked Until Paired</p>
+                <p className="text-sm text-starlight-cyan/90">
+                  Sky Atlas, Message Orbit, and Capsule Constellation remain dormant without active partner relation.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {hasPartner && (
         <div className="grid grid-cols-1 xl:grid-cols-[280px_1fr] gap-6">
           <aside className="sentimental-haze rounded-2xl p-3 md:p-4 h-fit">
             <nav className="flex xl:flex-col gap-2 overflow-x-auto xl:overflow-visible">
@@ -192,6 +231,7 @@ const Dashboard: React.FC = () => {
             </AnimatePresence>
           </div>
         </div>
+        )}
       </div>
     </div>
   )

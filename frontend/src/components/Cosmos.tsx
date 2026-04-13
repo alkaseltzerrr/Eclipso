@@ -28,44 +28,88 @@ const Cosmos: React.FC = () => {
           )}
           
           {/* Stars */}
-          {stars.map((star) => (
-            <g key={star.id}>
-              {/* Star glow */}
-              <circle
-                cx={star.x}
-                cy={star.y}
-                r={8}
-                fill="url(#starGlow)"
-                opacity={star.brightness * 0.3}
-              />
-              {/* Star core */}
-              <circle
-                cx={star.x}
-                cy={star.y}
-                r={3}
-                fill={getStarColor(star.category)}
-                opacity={star.brightness}
-                className="animate-pulse-glow"
-              />
-              {/* Star name tooltip area */}
-              <circle
-                cx={star.x}
-                cy={star.y}
-                r={12}
-                fill="transparent"
-                className="hover:fill-aurora-purple/20 transition-all duration-300 cursor-pointer"
-              >
-                <title>{star.name}</title>
-              </circle>
-            </g>
-          ))}
+          {stars.map((star) => {
+            const color = getStarColor(star.category)
+            const coreRadius = 1.6 + star.brightness * 2.3
+            const haloRadius = coreRadius * 4.6
+            const glintLength = coreRadius * 4.8
+            const gradientId = `halo-${star.id}`
+
+            return (
+              <g key={star.id}>
+                <defs>
+                  <radialGradient id={gradientId} cx="50%" cy="50%" r="50%">
+                    <stop offset="0%" stopColor={color} stopOpacity="0.58" />
+                    <stop offset="55%" stopColor={color} stopOpacity="0.16" />
+                    <stop offset="100%" stopColor={color} stopOpacity="0" />
+                  </radialGradient>
+                </defs>
+
+                <circle
+                  cx={star.x}
+                  cy={star.y}
+                  r={haloRadius}
+                  fill={`url(#${gradientId})`}
+                  opacity={0.95}
+                />
+
+                <circle
+                  cx={star.x}
+                  cy={star.y}
+                  r={coreRadius * 1.75}
+                  fill={color}
+                  opacity={0.22 + star.brightness * 0.22}
+                />
+
+                {star.brightness > 0.62 && (
+                  <g opacity={0.55}>
+                    <line
+                      x1={star.x - glintLength}
+                      y1={star.y}
+                      x2={star.x + glintLength}
+                      y2={star.y}
+                      stroke={color}
+                      strokeWidth="0.7"
+                    />
+                    <line
+                      x1={star.x}
+                      y1={star.y - glintLength}
+                      x2={star.x}
+                      y2={star.y + glintLength}
+                      stroke={color}
+                      strokeWidth="0.7"
+                    />
+                  </g>
+                )}
+
+                <circle
+                  cx={star.x}
+                  cy={star.y}
+                  r={coreRadius}
+                  fill="#fffdfd"
+                  opacity={0.9}
+                  className="animate-pulse-glow"
+                />
+
+                {/* Star name tooltip area */}
+                <circle
+                  cx={star.x}
+                  cy={star.y}
+                  r={haloRadius}
+                  fill="transparent"
+                  className="hover:fill-aurora-purple/20 transition-all duration-300 cursor-pointer"
+                >
+                  <title>{star.name}</title>
+                </circle>
+              </g>
+            )
+          })}
           
           {/* Gradient definitions */}
           <defs>
-            <radialGradient id="starGlow" cx="0.5" cy="0.5" r="0.5">
-              <stop offset="0%" stopColor="#8A5DFF" stopOpacity="0.8" />
-              <stop offset="100%" stopColor="#8A5DFF" stopOpacity="0" />
-            </radialGradient>
+            <filter id="softBlur" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur stdDeviation="0.6" />
+            </filter>
           </defs>
         </svg>
       </div>
